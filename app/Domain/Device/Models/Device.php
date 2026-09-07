@@ -9,22 +9,38 @@ use App\Domain\Owner\Models\Owner;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Device extends Model
 {
+    protected $hidden = ['device_token_hash'];
+
     protected $fillable = [
         'owner_id',
         'device_uid',
-        'name',
+        'device_name',
         'model',
         'os_version',
         'last_heartbeat_at',
+        'last_seen_at',
+        'battery_level',
+        'is_screaming',
+        'is_tracking_continuous',
+        'is_locked',
+        'is_stolen',
+        'device_token_hash',
     ];
 
     protected function casts(): array
     {
         return [
             'last_heartbeat_at' => 'datetime',
+            'last_seen_at' => 'datetime',
+            'battery_level' => 'integer',
+            'is_screaming' => 'boolean',
+            'is_tracking_continuous' => 'boolean',
+            'is_locked' => 'boolean',
+            'is_stolen' => 'boolean',
         ];
     }
 
@@ -46,5 +62,20 @@ class Device extends Model
     public function alerts(): HasMany
     {
         return $this->hasMany(Alert::class);
+    }
+
+    public function lastLocation(): HasOne
+    {
+        return $this->hasOne(Location::class)->latestOfMany('recorded_at');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->whereNotNull('last_seen_at');
+    }
+
+    public function scopeOwnedBy($query, int $ownerId)
+    {
+        return $query->where('owner_id', $ownerId);
     }
 }

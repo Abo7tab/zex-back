@@ -35,6 +35,7 @@ class Owner extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'pin_code' => 'hashed',
         ];
     }
 

@@ -14,6 +14,9 @@ class Location extends Model
         'longitude',
         'accuracy',
         'speed',
+        'provider',
+        'battery_level',
+        'network_type',
         'recorded_at',
     ];
 
@@ -24,6 +27,7 @@ class Location extends Model
             'longitude' => 'float',
             'accuracy' => 'float',
             'speed' => 'float',
+            'battery_level' => 'integer',
             'recorded_at' => 'datetime',
         ];
     }

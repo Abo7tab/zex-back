@@ -16,7 +16,6 @@ class SendCommandRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'device_id' => ['required', 'integer', 'exists:devices,id'],
             'type' => ['required', new Enum(CommandType::class)],
             'parameters' => ['nullable', 'array'],
         ];

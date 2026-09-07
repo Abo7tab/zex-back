@@ -16,9 +16,9 @@ class RegisterOwnerRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:owners,email'],
-            'phone' => ['required', 'string'],
+            'phone' => ['required', 'string', 'max:32'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'pin_code' => ['required', 'string', 'size:6'],
+            'pin_code' => ['required', 'digits:6'],
         ];
     }
 }
