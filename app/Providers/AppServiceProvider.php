@@ -23,5 +23,13 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(CommandRepositoryInterface::class, EloquentCommandRepository::class);
         $this->app->bind(LocationRepositoryInterface::class, EloquentLocationRepository::class);
         $this->app->bind(AlertRepositoryInterface::class, EloquentAlertRepository::class);
+
+        $this->app->extend(\Kreait\Firebase\Factory::class, function ($factory, $app) {
+            return $factory->withHttpClientConfig([
+                'curl' => [
+                    CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                ]
+            ]);
+        });
     }
 }

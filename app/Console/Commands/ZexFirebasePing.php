@@ -25,6 +25,7 @@ class ZexFirebasePing extends Command
             return 0;
         } catch (Throwable $e) {
             $this->error('Failed to ping Firebase: ' . $e->getMessage());
+            $this->warn('If curl -4 works, ensure CURLOPT_IPRESOLVE_V4 is applied.');
             return 1;
         }
     }
