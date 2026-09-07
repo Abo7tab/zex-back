@@ -28,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
             $options = \Kreait\Firebase\Http\HttpClientOptions::default()
                 ->withGuzzleConfigOption('curl', [
                     \CURLOPT_IPRESOLVE => \CURL_IPRESOLVE_V4,
+                    \CURLOPT_HTTP_VERSION => \CURL_HTTP_VERSION_1_1,
                 ])
                 ->withConnectTimeout(5)
                 ->withTimeout(10);
