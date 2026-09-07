@@ -8,9 +8,14 @@ use App\Domain\Location\Repositories\LocationRepositoryInterface;
 
 class StoreLocationAction
 {
-    public function __construct(private LocationRepositoryInterface $locations) {}
+    public function __construct(
+        private LocationRepositoryInterface $locations,
+        private \App\Infrastructure\Firebase\FirebaseService $firebase
+    ) {}
     public function execute(Device $device, array $data): Location
     {
-        return $this->locations->create($device, $data + ['recorded_at' => $data['recorded_at'] ?? now()]);
+        $location = $this->locations->create($device, $data + ['recorded_at' => $data['recorded_at'] ?? now()]);
+        $this->firebase->syncLastLocation($device->device_uid, $location->toArray());
+        return $location;
     }
 }

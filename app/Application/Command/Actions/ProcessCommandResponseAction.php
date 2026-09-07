@@ -11,7 +11,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ProcessCommandResponseAction
 {
-    public function __construct(private CommandRepositoryInterface $commands) {}
+    public function __construct(
+        private CommandRepositoryInterface $commands,
+        private \App\Infrastructure\Firebase\FirebaseService $firebase
+    ) {}
     public function execute(Device $device, Command $command, CommandStatus $status, ?array $response): Command
     {
         if ($command->device_id !== $device->id) {
@@ -23,6 +26,8 @@ class ProcessCommandResponseAction
         if (! in_array($status, [CommandStatus::EXECUTED, CommandStatus::FAILED], true)) {
             throw ValidationException::withMessages(['status' => ['Only EXECUTED or FAILED is accepted.']]);
         }
-        return $this->commands->update($command, ['status' => $status, 'response' => $response, 'executed_at' => $status === CommandStatus::EXECUTED ? now() : null]);
+        $updated = $this->commands->update($command, ['status' => $status, 'response' => $response, 'executed_at' => $status === CommandStatus::EXECUTED ? now() : null]);
+        $this->firebase->removeCommandRealtime($device->device_uid, $command->id);
+        return $updated;
     }
 }

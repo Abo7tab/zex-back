@@ -4,6 +4,9 @@
 .env.backup
 .env.production
 .phpactor.json
+firebase-credentials.json
+google-services.json
+zex-12-*.json
 .phpunit.result.cache
 /.fleet
 /.idea
