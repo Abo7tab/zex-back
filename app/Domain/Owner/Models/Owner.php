@@ -18,11 +18,15 @@ class Owner extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'phone',
         'password',
+        'pin_code',
+        'telegram_chat_id',
     ];
 
     protected $hidden = [
         'password',
+        'pin_code',
         'remember_token',
     ];
 

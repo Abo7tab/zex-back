@@ -16,7 +16,9 @@ class AuthController
         $owner = Owner::create([
             'name' => $request->validated('name'),
             'email' => $request->validated('email'),
+            'phone' => $request->validated('phone'),
             'password' => Hash::make($request->validated('password')),
+            'pin_code' => $request->validated('pin_code'),
         ]);
 
         $token = $owner->createToken('api-token')->plainTextToken;
