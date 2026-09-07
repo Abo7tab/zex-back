@@ -19,5 +19,5 @@ class DeviceController
     public function index(Request $request, GetOwnerDevicesAction $action) { return DeviceResource::collection($action->execute($request->user())); }
     public function show(Request $request, Device $device, GetOwnedDeviceAction $action): DeviceResource { return DeviceResource::make($action->execute($request->user(), $device)); }
     public function register(RegisterDeviceRequest $request, RegisterDeviceAction $action): JsonResponse { [$device, $token] = $action->execute($request->user(), $request->validated()); return response()->json(['device' => DeviceResource::make($device), 'device_token' => $token], 201); }
-    public function heartbeat(HeartbeatRequest $request, ProcessHeartbeatAction $action): JsonResponse { [$device, $commands] = $action->execute($request->attributes->get('device'), $request->validated('battery_level')); return response()->json(['device' => DeviceResource::make($device), 'commands' => CommandResource::collection($commands)]); }
+    public function heartbeat(HeartbeatRequest $request, ProcessHeartbeatAction $action): JsonResponse { [$device, $commands] = $action->execute($request->attributes->get('device'), $request->validated('battery_level')); return response()->json(['device' => DeviceResource::make($device), 'pending_commands' => CommandResource::collection($commands)]); }
 }
