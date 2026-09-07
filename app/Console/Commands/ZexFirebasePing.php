@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Kreait\Firebase\Contract\Database;
-use Exception;
+use Throwable;
 
 class ZexFirebasePing extends Command
 {
@@ -22,8 +22,10 @@ class ZexFirebasePing extends Command
             $value = $ref->getValue();
             $this->info('Success! Firebase responded with:');
             $this->line(json_encode($value, JSON_PRETTY_PRINT));
-        } catch (Exception $e) {
+            return 0;
+        } catch (Throwable $e) {
             $this->error('Failed to ping Firebase: ' . $e->getMessage());
+            return 1;
         }
     }
 }

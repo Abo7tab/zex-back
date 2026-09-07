@@ -6,7 +6,7 @@ use Kreait\Firebase\Contract\Database;
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
-use Exception;
+use Throwable;
 use Illuminate\Support\Facades\Log;
 
 class FirebaseService
@@ -21,8 +21,8 @@ class FirebaseService
         try {
             $this->database->getReference("devices/{$deviceUid}/last_location")
                 ->set($location);
-        } catch (Exception $e) {
-            Log::error('Firebase syncLastLocation failed: ' . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::warning('Firebase syncLastLocation failed: ' . $e->getMessage());
         }
     }
 
@@ -31,8 +31,8 @@ class FirebaseService
         try {
             $this->database->getReference("devices/{$deviceUid}/status")
                 ->update($status);
-        } catch (Exception $e) {
-            Log::error('Firebase syncDeviceStatus failed: ' . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::warning('Firebase syncDeviceStatus failed: ' . $e->getMessage());
         }
     }
 
@@ -41,8 +41,8 @@ class FirebaseService
         try {
             $this->database->getReference("devices/{$deviceUid}/pending_commands/{$command['id']}")
                 ->set($command);
-        } catch (Exception $e) {
-            Log::error('Firebase pushCommandRealtime failed: ' . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::warning('Firebase pushCommandRealtime failed: ' . $e->getMessage());
         }
     }
 
@@ -51,8 +51,8 @@ class FirebaseService
         try {
             $this->database->getReference("devices/{$deviceUid}/pending_commands/{$commandId}")
                 ->remove();
-        } catch (Exception $e) {
-            Log::error('Firebase removeCommandRealtime failed: ' . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::warning('Firebase removeCommandRealtime failed: ' . $e->getMessage());
         }
     }
 
@@ -61,8 +61,8 @@ class FirebaseService
         try {
             $this->database->getReference("devices/{$deviceUid}/alerts/{$alert['id']}")
                 ->set($alert);
-        } catch (Exception $e) {
-            Log::error('Firebase pushAlertRealtime failed: ' . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::warning('Firebase pushAlertRealtime failed: ' . $e->getMessage());
         }
     }
 
@@ -78,8 +78,8 @@ class FirebaseService
                 ->withData($data);
 
             $this->messaging->send($message);
-        } catch (Exception $e) {
-            Log::error('Firebase sendFcmToDevice failed: ' . $e->getMessage());
+        } catch (Throwable $e) {
+            Log::warning('Firebase sendFcmToDevice failed: ' . $e->getMessage());
         }
     }
 }
