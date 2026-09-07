@@ -25,11 +25,14 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(AlertRepositoryInterface::class, EloquentAlertRepository::class);
 
         $this->app->extend(\Kreait\Firebase\Factory::class, function ($factory, $app) {
-            return $factory->withHttpClientConfig([
-                'curl' => [
-                    CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                ]
-            ]);
+            $options = \Kreait\Firebase\Http\HttpClientOptions::default()
+                ->withGuzzleConfigOption('curl', [
+                    \CURLOPT_IPRESOLVE => \CURL_IPRESOLVE_V4,
+                ])
+                ->withConnectTimeout(5)
+                ->withTimeout(10);
+
+            return $factory->withHttpClientOptions($options);
         });
     }
 }
