@@ -28,6 +28,9 @@ class Device extends Model
         'is_tracking_continuous',
         'is_locked',
         'is_stolen',
+        'is_searching',
+        'searching_started_at',
+        'search_interval_seconds',
         'device_token_hash',
     ];
 
@@ -36,11 +39,14 @@ class Device extends Model
         return [
             'last_heartbeat_at' => 'datetime',
             'last_seen_at' => 'datetime',
+            'searching_started_at' => 'datetime',
             'battery_level' => 'integer',
+            'search_interval_seconds' => 'integer',
             'is_screaming' => 'boolean',
             'is_tracking_continuous' => 'boolean',
             'is_locked' => 'boolean',
             'is_stolen' => 'boolean',
+            'is_searching' => 'boolean',
         ];
     }
 

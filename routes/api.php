@@ -35,6 +35,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/devices/{device}/enable-net', [CommandController::class, 'enableNet']);
     Route::post('/devices/{device}/stolen', [CommandController::class, 'stolen']);
     Route::post('/devices/{device}/found', [CommandController::class, 'found']);
+    Route::post('/devices/{device}/search-mode', [DeviceController::class, 'searchMode']);
+    Route::post('/devices/{device}/stop-search', [DeviceController::class, 'stopSearch']);
     Route::get('/alerts', [AlertController::class, 'index']);
     Route::post('/alerts/{alert}/read', [AlertController::class, 'markRead']);
 });
+
+// Device status endpoint that supports both owner and device token auth without middleware strictly blocking it
+Route::get('/devices/{device}/status', [DeviceController::class, 'status']);
+
