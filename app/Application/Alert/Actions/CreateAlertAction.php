@@ -10,7 +10,7 @@ class CreateAlertAction
 {
     public function __construct(
         private AlertRepositoryInterface $alerts,
-        private \App\Infrastructure\Firebase\NotificationServiceInterface $firebase
+        private \App\Domain\Contracts\NotificationServiceInterface $firebase
     ) {}
     public function execute(Device $device, array $data): Alert 
     { 

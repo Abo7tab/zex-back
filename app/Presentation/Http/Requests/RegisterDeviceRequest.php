@@ -24,6 +24,7 @@ class RegisterDeviceRequest extends FormRequest
             'device_name' => ['required', 'string', 'max:255'],
             'device_model' => ['nullable', 'string', 'max:255'],
             'android_version' => ['nullable', 'string', 'max:255'],
+            'fcm_token' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

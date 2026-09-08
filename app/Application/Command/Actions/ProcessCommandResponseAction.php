@@ -13,7 +13,7 @@ class ProcessCommandResponseAction
 {
     public function __construct(
         private CommandRepositoryInterface $commands,
-        private \App\Infrastructure\Firebase\NotificationServiceInterface $firebase
+        private \App\Domain\Contracts\NotificationServiceInterface $firebase
     ) {}
     public function execute(Device $device, Command $command, CommandStatus $status, ?array $response): Command
     {
