@@ -21,7 +21,7 @@ class DeviceController
     public function register(RegisterDeviceRequest $request, RegisterDeviceAction $action): JsonResponse { [$device, $token] = $action->execute($request->user(), $request->validated()); return response()->json(['device' => DeviceResource::make($device), 'device_token' => $token], 201); }
     public function heartbeat(HeartbeatRequest $request, ProcessHeartbeatAction $action): JsonResponse 
     { 
-        [$device, $commands] = $action->execute($request->attributes->get('device'), $request->validated('battery_level'), $request->validated('fcm_token')); 
+        [$device, $commands] = $action->execute($request->attributes->get('device'), $request->validated('battery_level'), $request->input('fcm_token')); 
         return response()->json([
             'device' => DeviceResource::make($device), 
             'pending_commands' => CommandResource::collection($commands),

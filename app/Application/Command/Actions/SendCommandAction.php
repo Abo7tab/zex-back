@@ -10,7 +10,7 @@ class SendCommandAction
 {
     public function __construct(
         private IssueDeviceCommandAction $commands,
-        private \App\Infrastructure\Firebase\NotificationServiceInterface $firebase
+        private \App\Domain\Contracts\NotificationServiceInterface $firebase
     ) {}
     public function execute(Owner $owner, Device $device, CommandType $type, array $parameters = []) 
     { 

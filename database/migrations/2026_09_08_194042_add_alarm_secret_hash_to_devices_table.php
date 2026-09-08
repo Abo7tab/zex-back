@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('devices', function (Blueprint $table) {
-            $table->string('alarm_secret_hash')->nullable()->after('device_token_hash');
+            if (!Schema::hasColumn('devices', 'alarm_secret_hash')) { $table->string('alarm_secret_hash')->nullable()->after('device_token_hash'); }
             if (!Schema::hasColumn('devices', 'fcm_token')) {
                 $table->string('fcm_token')->nullable()->after('device_token_hash');
             }

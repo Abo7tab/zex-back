@@ -17,7 +17,7 @@ class SetSearchModeAction
 
     public function execute(Device $device, array $data): Device
     {
-        return DB::transaction(function () use ($device, $data) {
+        $result = DB::transaction(function () use ($device, $data) {
             $updates = [
                 'is_searching' => true,
                 'searching_started_at' => now(),
@@ -46,11 +46,17 @@ class SetSearchModeAction
                 'status' => 'PENDING',
             ]);
 
-            $this->firebase->updateDeviceState($device->device_uid, $device->only([
-                'last_seen_at', 'last_heartbeat_at', 'battery_level', 'is_screaming', 'is_tracking_continuous', 'is_locked', 'is_stolen', 'is_searching'
-            ]));
-
             return $device;
         });
+
+        try {
+            $this->firebase->updateDeviceState($result->device_uid, $result->only([
+                'last_seen_at', 'last_heartbeat_at', 'battery_level', 'is_screaming', 'is_tracking_continuous', 'is_locked', 'is_stolen', 'is_searching'
+            ]));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Firebase sync failed', ['error' => $e->getMessage()]);
+        }
+
+        return $result;
     }
 }

@@ -18,8 +18,8 @@ class RegisterDeviceAction
         
         $alarmSecret = (string) random_int(100000, 999999);
         $device->alarm_secret_hash = \Illuminate\Support\Facades\Hash::make($alarmSecret);
-        if (isset($attributes['fcm_token'])) {
-            $device->fcm_token = $attributes['fcm_token'];
+        if (isset($data['fcm_token'])) {
+            $device->fcm_token = $data['fcm_token'];
         }
         $device->save();
         $device->alarm_secret_plain = $alarmSecret; // temporary attribute for response
