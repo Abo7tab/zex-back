@@ -18,6 +18,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(\App\Domain\Contracts\NotificationServiceInterface::class, \App\Infrastructure\Firebase\FirebaseService::class);
         $this->app->bind(OwnerRepositoryInterface::class, EloquentOwnerRepository::class);
         $this->app->bind(DeviceRepositoryInterface::class, EloquentDeviceRepository::class);
         $this->app->bind(CommandRepositoryInterface::class, EloquentCommandRepository::class);

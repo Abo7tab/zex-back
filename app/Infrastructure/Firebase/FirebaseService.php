@@ -9,7 +9,9 @@ use Kreait\Firebase\Messaging\Notification;
 use Throwable;
 use Illuminate\Support\Facades\Log;
 
-class FirebaseService
+use App\Domain\Contracts\NotificationServiceInterface;
+
+class FirebaseService implements NotificationServiceInterface
 {
     public function __construct(
         private Database $database,
@@ -26,7 +28,7 @@ class FirebaseService
         }
     }
 
-    public function syncDeviceStatus(string $deviceUid, array $status): void
+    public function updateDeviceState(string $deviceUid, array $status): void
     {
         try {
             $this->database->getReference("devices/{$deviceUid}/status")
@@ -66,7 +68,7 @@ class FirebaseService
         }
     }
 
-    public function sendFcmToDevice(?string $fcmToken, string $title, string $body, array $data = []): void
+    public function sendToDevice(?string $fcmToken, string $title, string $body, array $data = []): void
     {
         if (!$fcmToken) {
             return;

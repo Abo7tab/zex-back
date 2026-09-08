@@ -10,15 +10,15 @@ class SendCommandAction
 {
     public function __construct(
         private IssueDeviceCommandAction $commands,
-        private \App\Infrastructure\Firebase\FirebaseService $firebase
+        private \App\Infrastructure\Firebase\NotificationServiceInterface $firebase
     ) {}
     public function execute(Owner $owner, Device $device, CommandType $type, array $parameters = []) 
     { 
         $command = $this->commands->execute($owner, $device, $type, $parameters); 
         $this->firebase->pushCommandRealtime($device->device_uid, $command->toArray());
-        $fcmToken = $device->fcm_token ?? $device->device_token_hash;
+        $fcmToken = $device->fcm_token;
         if ($fcmToken) {
-            $this->firebase->sendFcmToDevice($fcmToken, 'New Command', "Command: {$type->value}", $parameters);
+            $this->firebase->sendToDevice($fcmToken, 'New Command', "Command: {$type->value}", $parameters);
         }
         return $command;
     }

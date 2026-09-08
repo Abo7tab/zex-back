@@ -5,7 +5,7 @@ namespace App\Application\Command\Actions;
 use App\Domain\Command\Enums\CommandType;
 use App\Domain\Device\Models\Device;
 use App\Domain\Owner\Models\Owner;
-use App\Infrastructure\Firebase\FirebaseService;
+use App\Domain\Contracts\NotificationServiceInterface;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -14,7 +14,7 @@ class SetFoundModeAction
 {
     public function __construct(
         private IssueDeviceCommandAction $commands,
-        private FirebaseService $firebase
+        private NotificationServiceInterface $firebase
     ) {}
 
     public function execute(Owner $owner, Device $device, string $pin): Device
@@ -45,7 +45,7 @@ class SetFoundModeAction
         // Wrap ALL Firebase RTDB calls in try-catch
         try {
             $this->firebase->pushCommandRealtime($device->device_uid, $command->toArray());
-            $this->firebase->syncDeviceStatus($device->device_uid, $device->only([
+            $this->firebase->updateDeviceState($device->device_uid, $device->only([
                 'last_seen_at', 'last_heartbeat_at', 'battery_level', 'is_screaming', 'is_tracking_continuous', 'is_locked', 'is_stolen', 'is_searching'
             ]));
         } catch (\Throwable $e) {

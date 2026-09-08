@@ -15,6 +15,15 @@ class RegisterDeviceAction
     {
         $token = Str::random(64);
         $device = $this->devices->createForOwner($owner, $data + ['device_token_hash' => Hash::make($token)]);
+        
+        $alarmSecret = (string) random_int(100000, 999999);
+        $device->alarm_secret_hash = \Illuminate\Support\Facades\Hash::make($alarmSecret);
+        if (isset($attributes['fcm_token'])) {
+            $device->fcm_token = $attributes['fcm_token'];
+        }
+        $device->save();
+        $device->alarm_secret_plain = $alarmSecret; // temporary attribute for response
         return [$device, $token];
+
     }
 }

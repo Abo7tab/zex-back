@@ -10,7 +10,7 @@ class CreateAlertAction
 {
     public function __construct(
         private AlertRepositoryInterface $alerts,
-        private \App\Infrastructure\Firebase\FirebaseService $firebase
+        private \App\Infrastructure\Firebase\NotificationServiceInterface $firebase
     ) {}
     public function execute(Device $device, array $data): Alert 
     { 
@@ -19,7 +19,7 @@ class CreateAlertAction
         
         $fcmToken = $device->fcm_token ?? $device->device_token_hash;
         if ($fcmToken) {
-            $this->firebase->sendFcmToDevice($fcmToken, 'New Alert', $data['type'] ?? 'Alert', $data);
+            $this->firebase->sendToDevice($fcmToken, 'New Alert', $data['type'] ?? 'Alert', $data);
         }
 
         return $alert;

@@ -10,7 +10,7 @@ class StoreLocationAction
 {
     public function __construct(
         private LocationRepositoryInterface $locations,
-        private \App\Infrastructure\Firebase\FirebaseService $firebase
+        private \App\Infrastructure\Firebase\NotificationServiceInterface $firebase
     ) {}
     public function execute(Device $device, array $data): Location
     {

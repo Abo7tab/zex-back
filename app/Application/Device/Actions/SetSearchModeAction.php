@@ -5,14 +5,14 @@ namespace App\Application\Device\Actions;
 use App\Domain\Command\Models\Command;
 use App\Domain\Device\Models\Device;
 use App\Domain\Device\Repositories\DeviceRepositoryInterface;
-use App\Infrastructure\Firebase\FirebaseService;
+use App\Domain\Contracts\NotificationServiceInterface;
 use Illuminate\Support\Facades\DB;
 
 class SetSearchModeAction
 {
     public function __construct(
         private DeviceRepositoryInterface $devices,
-        private FirebaseService $firebase
+        private NotificationServiceInterface $firebase
     ) {}
 
     public function execute(Device $device, array $data): Device
@@ -46,7 +46,7 @@ class SetSearchModeAction
                 'status' => 'PENDING',
             ]);
 
-            $this->firebase->syncDeviceStatus($device->device_uid, $device->only([
+            $this->firebase->updateDeviceState($device->device_uid, $device->only([
                 'last_seen_at', 'last_heartbeat_at', 'battery_level', 'is_screaming', 'is_tracking_continuous', 'is_locked', 'is_stolen', 'is_searching'
             ]));
 

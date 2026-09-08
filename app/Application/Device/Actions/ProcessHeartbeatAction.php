@@ -13,7 +13,7 @@ class ProcessHeartbeatAction
     public function __construct(
         private DeviceRepositoryInterface $devices, 
         private CommandRepositoryInterface $commands,
-        private \App\Infrastructure\Firebase\FirebaseService $firebase
+        private \App\Infrastructure\Firebase\NotificationServiceInterface $firebase
     ) {}
 
     public function execute(Device $device, ?int $batteryLevel): array
@@ -25,7 +25,7 @@ class ProcessHeartbeatAction
             if ($batteryLevel !== null && Schema::hasColumn('devices', 'battery_level')) $updates['battery_level'] = $batteryLevel;
             $device = $this->devices->update($device, $updates);
             
-            $this->firebase->syncDeviceStatus($device->device_uid, $device->only([
+            $this->firebase->updateDeviceState($device->device_uid, $device->only([
                 'last_seen_at', 'last_heartbeat_at', 'battery_level', 'is_screaming', 'is_tracking_continuous', 'is_locked', 'is_stolen'
             ]));
 

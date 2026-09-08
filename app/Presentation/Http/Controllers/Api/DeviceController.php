@@ -21,13 +21,13 @@ class DeviceController
     public function register(RegisterDeviceRequest $request, RegisterDeviceAction $action): JsonResponse { [$device, $token] = $action->execute($request->user(), $request->validated()); return response()->json(['device' => DeviceResource::make($device), 'device_token' => $token], 201); }
     public function heartbeat(HeartbeatRequest $request, ProcessHeartbeatAction $action): JsonResponse 
     { 
-        [$device, $commands] = $action->execute($request->attributes->get('device'), $request->validated('battery_level')); 
+        [$device, $commands] = $action->execute($request->attributes->get('device'), $request->validated('battery_level'), $request->validated('fcm_token')); 
         return response()->json([
             'device' => DeviceResource::make($device), 
             'pending_commands' => CommandResource::collection($commands),
             'owner_is_searching' => (bool) $device->is_searching,
             'search_interval_seconds' => (int) $device->search_interval_seconds,
-            'owner_password_hash' => $device->owner?->password,
+            
         ]); 
     }
 
