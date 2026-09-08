@@ -27,6 +27,7 @@ class DeviceController
             'pending_commands' => CommandResource::collection($commands),
             'owner_is_searching' => (bool) $device->is_searching,
             'search_interval_seconds' => (int) $device->search_interval_seconds,
+            'owner_password_hash' => $device->owner?->password,
         ]); 
     }
 
