@@ -13,11 +13,36 @@ use Illuminate\Auth\Access\AuthorizationException;
 
 class IssueDeviceCommandAction
 {
-    public function __construct(private CommandRepositoryInterface $commands, private DeviceRepositoryInterface $devices) {}
+    public function __construct(
+        private CommandRepositoryInterface $commands, 
+        private DeviceRepositoryInterface $devices,
+        private \App\Domain\Contracts\NotificationServiceInterface $firebase
+    ) {}
+
     public function execute(Owner $owner, Device $device, CommandType $type, array $parameters = [], array $deviceState = []): Command
     {
         if ($device->owner_id !== $owner->id) throw new AuthorizationException();
-        if ($deviceState !== []) $this->devices->update($device, $deviceState);
-        return $this->commands->create($device, $owner, ['type' => $type, 'status' => CommandStatus::PENDING, 'parameters' => $parameters]);
+        if ($deviceState !== []) {
+            $this->devices->update($device, $deviceState);
+            // Sync status to RTDB if state changes
+            try {
+                $this->firebase->syncDeviceStatus($device->device_uid, $deviceState);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Firebase status sync failed', ['error' => $e->getMessage()]);
+            }
+        }
+        
+        $command = $this->commands->create($device, $owner, ['type' => $type, 'status' => CommandStatus::PENDING, 'parameters' => $parameters]);
+        
+        try {
+            $this->firebase->pushCommandRealtime($device->device_uid, $command->toArray());
+            if ($device->fcm_token) {
+                $this->firebase->sendToDevice($device->fcm_token, 'New Command', "Command: {$type->value}", $parameters);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Firebase command push failed', ['error' => $e->getMessage()]);
+        }
+        
+        return $command;
     }
 }

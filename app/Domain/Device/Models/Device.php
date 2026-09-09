@@ -32,6 +32,8 @@ class Device extends Model
         'searching_started_at',
         'search_interval_seconds',
         'device_token_hash',
+        'alarm_secret_hash',
+        'fcm_token',
     ];
 
     protected function casts(): array
