@@ -20,4 +20,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (AuthenticationException $exception) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         });
+        $exceptions->render(function (\Throwable $e, \Illuminate\Http\Request $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => $e->getMessage() ?: 'Internal Server Error'
+                ], $e instanceof \Symfony\Component\HttpKernel\Exception\HttpException ? $e->getStatusCode() : 500);
+            }
+        });
     })->create();
