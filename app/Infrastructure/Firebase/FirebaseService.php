@@ -75,9 +75,14 @@ class FirebaseService implements NotificationServiceInterface
         }
 
         try {
+            $config = \Kreait\Firebase\Messaging\AndroidConfig::fromArray([
+                'priority' => 'high',
+                'ttl' => '3600s',
+            ]);
+
             $message = CloudMessage::withTarget('token', $fcmToken)
-                ->withNotification(Notification::create($title, $body))
-                ->withData($data);
+                ->withData($data)
+                ->withAndroidConfig($config);
 
             $this->messaging->send($message);
         } catch (Throwable $e) {
