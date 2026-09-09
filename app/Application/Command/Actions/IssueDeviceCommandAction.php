@@ -26,7 +26,7 @@ class IssueDeviceCommandAction
             $this->devices->update($device, $deviceState);
             // Sync status to RTDB if state changes
             try {
-                $this->firebase->syncDeviceStatus($device->device_uid, $deviceState);
+                $this->firebase->updateDeviceState($device->device_uid, $deviceState);
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('Firebase status sync failed', ['error' => $e->getMessage()]);
             }
@@ -37,7 +37,11 @@ class IssueDeviceCommandAction
         try {
             $this->firebase->pushCommandRealtime($device->device_uid, $command->toArray());
             if ($device->fcm_token) {
-                $this->firebase->sendToDevice($device->fcm_token, 'New Command', "Command: {$type->value}", $parameters);
+                $fcmPayload = array_merge([
+                    'id'   => (string) $command->id,
+                    'type' => (string) $command->type->value,
+                ], $parameters);
+                $this->firebase->sendToDevice($device->fcm_token, 'New Command', "Command: {$type->value}", $fcmPayload);
             }
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('Firebase command push failed', ['error' => $e->getMessage()]);
