@@ -15,6 +15,12 @@ class StoreLocationAction
     public function execute(Device $device, array $data): Location
     {
         $location = $this->locations->create($device, $data + ['recorded_at' => $data['recorded_at'] ?? now()]);
+        
+        $device->update(['last_heartbeat_at' => now()]);
+        $this->firebase->updateDeviceState($device->device_uid, [
+            'last_heartbeat_at' => now()->toIso8601String(),
+        ]);
+        
         $this->firebase->syncLastLocation($device->device_uid, $location->toArray());
         return $location;
     }

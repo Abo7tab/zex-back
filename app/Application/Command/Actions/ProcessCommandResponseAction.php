@@ -27,6 +27,12 @@ class ProcessCommandResponseAction
             throw ValidationException::withMessages(['status' => ['Only EXECUTED or FAILED is accepted.']]);
         }
         $updated = $this->commands->update($command, ['status' => $status, 'response' => $response, 'executed_at' => $status === CommandStatus::EXECUTED ? now() : null]);
+        
+        $device->update(['last_heartbeat_at' => now()]);
+        $this->firebase->updateDeviceState($device->device_uid, [
+            'last_heartbeat_at' => now()->toIso8601String(),
+        ]);
+        
         $this->firebase->removeCommandRealtime($device->device_uid, $command->id);
         return $updated;
     }
