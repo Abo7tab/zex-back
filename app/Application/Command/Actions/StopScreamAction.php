@@ -11,9 +11,12 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 class StopScreamAction
 {
     public function __construct(private IssueDeviceCommandAction $commands) {}
-    public function execute(Owner $owner, Device $device, ?string $password, ?string $alarmSecret) {
-        if (!empty($password)) {
-            if (!Hash::check($password, $owner->password)) {
+    public function execute(?Owner $owner, Device $device, ?string $password, ?string $alarmSecret) {
+        $cleanPassword = trim((string)$password);
+        $owner = $owner ?? auth()->user() ?? $device->owner;
+        
+        if (!empty($cleanPassword)) {
+            if (!$owner || !Hash::check($cleanPassword, $owner->password)) {
                 throw new HttpException(403, 'Invalid password.');
             }
         } elseif (!empty($alarmSecret)) {
