@@ -38,6 +38,15 @@ class FirebaseService implements NotificationServiceInterface
         }
     }
 
+    public function deleteDeviceState(string $deviceUid): void
+    {
+        try {
+            $this->database->getReference("devices/{$deviceUid}")->remove();
+        } catch (Throwable $e) {
+            Log::warning('Firebase deleteDeviceState failed: ' . $e->getMessage());
+        }
+    }
+
     public function pushCommandRealtime(string $deviceUid, array $command): void
     {
         try {

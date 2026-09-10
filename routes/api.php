@@ -21,6 +21,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::post('/devices/register', [DeviceController::class, 'register']);
+    Route::delete('/devices/{device}', [DeviceController::class, 'destroy']);
     Route::get('/devices', [DeviceController::class, 'index']);
     Route::get('/devices/{device}', [DeviceController::class, 'show']);
     Route::get('/devices/{device}/locations', [LocationController::class, 'history']);
