@@ -22,6 +22,7 @@ class DeviceController
     public function destroy(Request $request, Device $device, \App\Domain\Contracts\NotificationServiceInterface $firebase): JsonResponse 
     {
         abort_if($device->owner_id !== $request->user()->id, 403, 'Unauthorized');
+        abort_if(!\Illuminate\Support\Facades\Hash::check($request->input('password'), $request->user()->password), 403, 'Invalid password');
         $firebase->deleteDeviceState($device->device_uid);
         $device->delete();
         return response()->json(['message' => 'Device deleted']);

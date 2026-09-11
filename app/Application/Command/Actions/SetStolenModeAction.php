@@ -13,9 +13,13 @@ class SetStolenModeAction
     public function execute(Owner $owner, Device $device)
     {
         $commands = [];
-        $commands[] = $this->commands->execute($owner, $device, CommandType::STOLEN_MODE, [], ['is_stolen' => true]);
-        $commands[] = $this->commands->execute($owner, $device, CommandType::CONTINUOUS_TRACK, ['interval' => 1, 'force_net' => true], ['is_tracking_continuous' => true]);
-        $commands[] = $this->commands->execute($owner, $device, CommandType::SCREAM, [], ['is_screaming' => true]);
+        $commands[] = $this->commands->execute($owner, $device, CommandType::STOLEN_MODE, [], [
+            'is_stolen' => true,
+            'is_screaming' => true,
+            'is_searching' => true
+        ]);
+        $commands[] = $this->commands->execute($owner, $device, CommandType::CONTINUOUS_TRACK, ['interval' => 30, 'force_net' => true]);
+        $commands[] = $this->commands->execute($owner, $device, CommandType::SCREAM, []);
         $commands[] = $this->commands->execute($owner, $device, CommandType::ENABLE_NET);
         return $commands;
     }
