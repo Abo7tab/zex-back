@@ -13,16 +13,16 @@ class RegisterDeviceAction
 
     public function execute(Owner $owner, array $data): array
     {
-        $token = Str::random(64);
+        $token = bin2hex(random_bytes(32));
         $device = $this->devices->createForOwner($owner, $data + ['device_token_hash' => Hash::make($token)]);
         
-        $alarmSecret = (string) random_int(100000, 999999);
+        $alarmSecret = bin2hex(random_bytes(32));
         $device->alarm_secret_hash = \Illuminate\Support\Facades\Hash::make($alarmSecret);
         if (isset($data['fcm_token'])) {
             $device->fcm_token = $data['fcm_token'];
         }
         $device->save();
-        $device->alarm_secret_plain = $alarmSecret; // temporary attribute for response
+        $device->alarm_secret_plain = $alarmSecret;
         return [$device, $token];
 
     }

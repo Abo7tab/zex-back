@@ -17,12 +17,19 @@ use Illuminate\Http\Request;
 class DeviceController
 {
     public function index(Request $request, GetOwnerDevicesAction $action) { return DeviceResource::collection($action->execute($request->user())); }
-    public function show(Request $request, Device $device, GetOwnedDeviceAction $action): DeviceResource { return DeviceResource::make($action->execute($request->user(), $device)); }
+    public function show(Request $request, Device $device, GetOwnedDeviceAction $action): DeviceResource { 
+        $device = $action->execute($request->user(), $device);
+        $device->load(['lastLocation', 'alerts' => fn($q) => $q->where('is_read', false)->latest()->limit(10)]);
+        return DeviceResource::make($device); 
+    }
     public function register(RegisterDeviceRequest $request, RegisterDeviceAction $action): JsonResponse { [$device, $token] = $action->execute($request->user(), $request->validated()); return response()->json(['device' => DeviceResource::make($device), 'device_token' => $token], 201); }
     public function destroy(Request $request, Device $device, \App\Domain\Contracts\NotificationServiceInterface $firebase): JsonResponse 
     {
         abort_if($device->owner_id !== $request->user()->id, 403, 'Unauthorized');
         abort_if(!\Illuminate\Support\Facades\Hash::check($request->input('password'), $request->user()->password), 403, 'Invalid password');
+        
+        \App\Application\Services\AuditLogService::log($request->user()->id, $device->id, 'DELETE_DEVICE', $request->ip(), $request->userAgent());
+        
         $firebase->deleteDeviceState($device->device_uid);
         $device->delete();
         return response()->json(['message' => 'Device deleted']);

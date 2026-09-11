@@ -7,12 +7,12 @@ use App\Presentation\Http\Controllers\Api\DeviceController;
 use App\Presentation\Http\Controllers\Api\LocationController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
+Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:3,1');
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 Route::middleware('device.auth')->group(function () {
-    Route::post('/devices/heartbeat', [DeviceController::class, 'heartbeat']);
-    Route::post('/locations', [LocationController::class, 'store']);
+    Route::post('/devices/heartbeat', [DeviceController::class, 'heartbeat'])->middleware('throttle:120,1');
+    Route::post('/locations', [LocationController::class, 'store'])->middleware('throttle:120,1');
     Route::post('/commands/{command}/response', [CommandController::class, 'storeResponse']);
     Route::post('/alerts', [AlertController::class, 'store']);
 });
