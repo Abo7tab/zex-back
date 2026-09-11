@@ -13,8 +13,8 @@ Route::post('/auth/login', [AuthController::class, 'login'])->middleware('thrott
 Route::middleware('device.auth')->group(function () {
     Route::post('/devices/heartbeat', [DeviceController::class, 'heartbeat'])->middleware('throttle:120,1');
     Route::post('/locations', [LocationController::class, 'store'])->middleware('throttle:120,1');
-    Route::post('/commands/{command}/response', [CommandController::class, 'storeResponse']);
-    Route::post('/alerts', [AlertController::class, 'store']);
+    Route::post('/commands/{command}/response', [CommandController::class, 'storeResponse'])->middleware('throttle:120,1');
+    Route::post('/alerts', [AlertController::class, 'store'])->middleware('throttle:120,1');
 });
 
 Route::middleware('auth:sanctum')->group(function () {
