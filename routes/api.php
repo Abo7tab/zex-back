@@ -21,6 +21,8 @@ Route::middleware('device.auth')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile'])->middleware('throttle:60,1');
+    Route::put('/auth/security', [AuthController::class, 'updateSecurity'])->middleware('throttle:60,1');
     Route::post('/devices/register', [DeviceController::class, 'register']);
     Route::delete('/devices/{device}', [DeviceController::class, 'destroy']);
     Route::get('/devices', [DeviceController::class, 'index']);
