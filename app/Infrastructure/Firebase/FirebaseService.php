@@ -86,11 +86,11 @@ class FirebaseService implements NotificationServiceInterface
         try {
             $config = \Kreait\Firebase\Messaging\AndroidConfig::fromArray([
                 'priority' => 'high',
-                'ttl' => '3600s',
+                'ttl' => '0s', // 0s ensures immediate delivery or drop, better for waking up devices
             ]);
 
             $message = CloudMessage::withTarget('token', $fcmToken)
-                ->withData($data)
+                ->withData(array_merge($data, ['priority' => 'high'])) // Sometimes passing in data helps custom receivers
                 ->withAndroidConfig($config);
 
             $this->messaging->send($message);
