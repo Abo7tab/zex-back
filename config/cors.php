@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['GET', 'POST', 'DELETE', 'OPTIONS'],
 
-    'allowed_origins' => ['https://zex-nine.vercel.app', 'http://localhost:3000'],
+    'allowed_origins' => ['https://zex-nine.vercel.app', 'https://zex-military.vercel.app', 'http://localhost:3000'],
 
     'allowed_origins_patterns' => [],
 
