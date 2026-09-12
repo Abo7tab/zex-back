@@ -36,6 +36,14 @@ class CommandController
         \App\Application\Services\AuditLogService::log($request->user()->id, $device->id, 'LOCK_DEVICE', $request->ip(), $request->userAgent());
         return response()->json(CommandResource::make($action->execute($request->user(), $device)), 201); 
     }
+    public function localStopScream(Request $request): JsonResponse {
+        $device = $request->attributes->get('device');
+        if ($device) {
+            app(\App\Application\Services\FirebaseService::class)->updateDeviceStatus($device->device_uid, ['is_screaming' => false]);
+            $device->update(['is_screaming' => false]);
+        }
+        return response()->json(['message' => 'Scream stopped locally'], 200);
+    }
     public function photo(Request $request, Device $device, IssueDeviceCommandAction $action): JsonResponse { return $this->issue($request, $device, CommandType::PHOTO, [], [], $action); }
     public function enableNet(Request $request, Device $device, IssueDeviceCommandAction $action): JsonResponse { 
         \App\Application\Services\AuditLogService::log($request->user()->id, $device->id, 'ENABLE_NET', $request->ip(), $request->userAgent());
