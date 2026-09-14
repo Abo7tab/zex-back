@@ -14,4 +14,6 @@ enum CommandType: string
     case ENABLE_NET = 'ENABLE_NET';
     case STOLEN_MODE = 'STOLEN_MODE';
     case FOUND_MODE = 'FOUND_MODE';
+    case POWER_SAVER_ON = 'POWER_SAVER_ON';
+    case POWER_SAVER_OFF = 'POWER_SAVER_OFF';
 }
