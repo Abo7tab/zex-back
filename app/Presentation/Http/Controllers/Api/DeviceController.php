@@ -114,7 +114,7 @@ class DeviceController
             ]);
         } catch (\Exception $e) {}
 
-        return response()->json(DeviceResource::make($device));
+        return response()->json(['status' => 'success', 'is_power_saver' => $device->is_power_saver, 'data' => DeviceResource::make($device)]);
     }
 
     public function searchMode(Request $request, Device $device, \App\Application\Device\Actions\SetSearchModeAction $action): JsonResponse
