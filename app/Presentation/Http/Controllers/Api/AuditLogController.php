@@ -23,6 +23,7 @@ class AuditLogController {
                     'severity' => $details['severity'] ?? 'info',
                     'message' => $details['message'] ?? 'Activity Logged',
                     'payload' => $details['payload'] ?? null,
+                    'metadata' => collect($details)->except(['message', 'severity', 'payload'])->all(),
                 ];
             });
         return response()->json($logs);

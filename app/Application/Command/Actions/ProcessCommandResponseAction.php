@@ -34,6 +34,22 @@ class ProcessCommandResponseAction
         ]);
         
         $this->firebase->removeCommandRealtime($device->device_uid, $command->id);
+
+        \App\Application\Services\AuditLogService::log(
+            $device->owner_id,
+            $device->id,
+            'COMMAND_RESPONSE',
+            null,
+            null,
+            [
+                'command_id' => $updated->id,
+                'command_type' => $updated->type?->value,
+                'status' => $status->value,
+                'received_at' => now()->toIso8601String(),
+                'executed_at' => optional($updated->executed_at)->toIso8601String(),
+                'response' => $response,
+            ]
+        );
         return $updated;
     }
 }

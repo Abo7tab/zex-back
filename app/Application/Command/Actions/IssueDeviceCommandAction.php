@@ -33,6 +33,20 @@ class IssueDeviceCommandAction
         }
         
         $command = $this->commands->create($device, $owner, ['type' => $type, 'status' => CommandStatus::PENDING, 'parameters' => $parameters]);
+
+        \App\Application\Services\AuditLogService::log(
+            $owner->id,
+            $device->id,
+            'COMMAND_QUEUED',
+            null,
+            null,
+            [
+                'command_id' => $command->id,
+                'command_type' => $type->value,
+                'queued_at' => now()->toIso8601String(),
+                'parameters' => $parameters,
+            ]
+        );
         
         try {
             $this->firebase->pushCommandRealtime($device->device_uid, $command->toArray());

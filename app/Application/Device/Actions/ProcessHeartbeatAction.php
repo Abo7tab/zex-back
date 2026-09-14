@@ -39,6 +39,22 @@ class ProcessHeartbeatAction
             \Illuminate\Support\Facades\Log::warning('Firebase sync failed', ['error' => $e->getMessage()]);
         }
 
+        foreach ($result[1] as $command) {
+            \App\Application\Services\AuditLogService::log(
+                $result[0]->owner_id,
+                $result[0]->id,
+                'COMMAND_SENT',
+                null,
+                null,
+                [
+                    'command_id' => $command->id,
+                    'command_type' => $command->type?->value,
+                    'sent_at' => optional($command->sent_at)->toIso8601String(),
+                    'delivery_channel' => 'heartbeat',
+                ]
+            );
+        }
+
         return $result;
     }
 }
