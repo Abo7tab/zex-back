@@ -23,6 +23,7 @@ class LocationController
             'longitude' => 'required|numeric',
             'accuracy' => 'nullable|numeric',
             'battery_level' => 'nullable|integer',
+            'distance_meters' => 'nullable|numeric|min:0',
         ]);
 
         $sourceDevice = $request->attributes->get('device');
@@ -45,6 +46,39 @@ class LocationController
         $location = $action->execute($device, $locationData);
         
         $device->update(['last_seen_at' => now()]);
+
+        try {
+            app(\App\Domain\Contracts\NotificationServiceInterface::class)->updateDeviceState($device->device_uid, [
+                'last_seen_at' => $device->last_seen_at->toIso8601String(),
+                'relay_source' => 'BLE_RELAY',
+                'ble_distance_meters' => $request->distance_meters,
+                'ble_proximity' => $request->distance_meters !== null && (float) $request->distance_meters <= 5 ? 'NEAR' : 'SEARCHING',
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('BLE proximity RTDB sync failed', ['error' => $e->getMessage()]);
+        }
+
+        \App\Application\Services\AuditLogService::log(
+            $device->owner_id,
+            $device->id,
+            'BLE_PROXIMITY_UPDATE',
+            null,
+            null,
+            [
+                'message' => 'BLE peer proximity update received',
+                'severity' => 'info',
+                'payload' => [
+                    'lat' => (float) $request->latitude,
+                    'lng' => (float) $request->longitude,
+                    'target_uid' => $device->device_uid,
+                    'source' => 'BLE_RELAY',
+                    'battery' => $request->battery_level,
+                    'distance_meters' => $request->distance_meters,
+                    'proximity' => $request->distance_meters !== null && (float) $request->distance_meters <= 5 ? 'NEAR' : 'SEARCHING',
+                    'received_at' => now()->toIso8601String(),
+                ],
+            ]
+        );
 
         return response()->json(LocationResource::make($location), 201);
     }
