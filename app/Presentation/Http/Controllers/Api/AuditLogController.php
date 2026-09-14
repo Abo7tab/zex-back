@@ -1,10 +1,9 @@
 <?php
 namespace App\Presentation\Http\Controllers\Api;
-use App\Presentation\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-class AuditLogController extends Controller {
+class AuditLogController {
     public function index(Request $request) {
         $user = $request->user();
         $logs = DB::table('audit_logs')
