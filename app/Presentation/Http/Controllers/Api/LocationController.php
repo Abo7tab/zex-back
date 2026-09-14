@@ -19,12 +19,18 @@ class LocationController
     {
         $request->validate([
             'target_device_hash' => 'required|string',
-            'latitude' => 'required|numeric',
-            'longitude' => 'required|numeric',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
             'accuracy' => 'nullable|numeric',
             'battery_level' => 'nullable|integer',
             'distance_meters' => 'nullable|numeric|min:0',
         ]);
+
+        // The mobile beacon starts with a zeroed packet before its first GPS fix.
+        // Never persist that placeholder as a real location or activity event.
+        if ((float) $request->latitude === 0.0 && (float) $request->longitude === 0.0) {
+            return response()->json(['message' => 'BLE location is waiting for a GPS fix.'], 422);
+        }
 
         $sourceDevice = $request->attributes->get('device');
         $device = Device::where('device_uid', 'LIKE', $request->target_device_hash . '%')
