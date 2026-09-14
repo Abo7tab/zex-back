@@ -42,4 +42,40 @@ class LocationController
 
         return response()->json(LocationResource::make($location), 201);
     }
+
+    public function smsRelay(Request $request): JsonResponse
+    {
+        $request->validate([
+            'target_device_uid' => 'required|string',
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+            'accuracy' => 'nullable|numeric'
+        ]);
+
+        $device = \App\Domain\Device\Models\Device::where('device_uid', $request->target_device_uid)->first();
+        if (!$device) {
+            return response()->json(['message' => 'Target device not found'], 404);
+        }
+
+        $device->update(['last_seen_at' => now()]);
+
+        $device->locations()->create([
+            'latitude' => $request->latitude,
+            'longitude' => $request->longitude,
+            'accuracy' => $request->accuracy ?? 10,
+            'is_offline_relay' => true,
+            'recorded_at' => now()
+        ]);
+        
+        try {
+            app(\App\Domain\Contracts\NotificationServiceInterface::class)->updateDeviceState($device->device_uid, [
+                'last_seen_at' => $device->last_seen_at->toIso8601String(),
+                'latest_lat' => $request->latitude,
+                'latest_lng' => $request->longitude,
+                'relay_source' => 'SMS'
+            ]);
+        } catch (\Exception $e) {}
+
+        return response()->json(['message' => 'SMS Relay processed successfully']);
+    }
 }
