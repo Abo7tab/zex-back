@@ -21,6 +21,7 @@ class AuthController
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:owners,email,' . $request->user()->id,
+            'phone' => 'nullable|string|max:255',
         ]);
         $request->user()->update($validated);
         return response()->json(['message' => 'Profile updated successfully', 'owner' => OwnerResource::make($request->user())]);
