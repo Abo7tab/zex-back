@@ -15,6 +15,8 @@ Route::middleware('device.auth')->group(function () {
     Route::post('/devices/local-stop-scream', [CommandController::class, 'localStopScream'])->middleware('throttle:300,1');
     Route::post('/locations', [LocationController::class, 'store'])->middleware('throttle:500,1');
     Route::post('/locations/ble-relay', [LocationController::class, 'bleRelay'])->middleware('throttle:300,1');
+    Route::post('/locations/sms-relay', [LocationController::class, 'smsRelay'])->middleware('throttle:300,1');
+    Route::post('/devices/activity-logs', [\App\Presentation\Http\Controllers\Api\AuditLogController::class, 'storeMobileActivity'])->middleware('throttle:300,1');
     Route::post('/commands/{command}/response', [CommandController::class, 'storeResponse'])->middleware('throttle:500,1');
     Route::post('/alerts', [AlertController::class, 'store'])->middleware('throttle:500,1');
 });
@@ -46,8 +48,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/devices/{device}/stop-search', [DeviceController::class, 'stopSearch']);
     Route::get('/alerts', [AlertController::class, 'index']);
     Route::post('/alerts/{alert}/read', [AlertController::class, 'markRead']);
+    
+    Route::get('/logs', [\App\Presentation\Http\Controllers\Api\AuditLogController::class, 'index']);
+    Route::post('/devices/{device}/activity-logs', [\App\Presentation\Http\Controllers\Api\AuditLogController::class, 'storeMobileActivity']);
 });
 
 // Device status endpoint that supports both owner and device token auth without middleware strictly blocking it
 Route::get('/devices/{device}/status', [DeviceController::class, 'status']);
+
+
 
