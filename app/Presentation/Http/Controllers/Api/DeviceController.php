@@ -29,7 +29,8 @@ class DeviceController
             'target_device_uid' => 'required|string',
             'latitude' => 'required|numeric',
             'longitude' => 'required|numeric',
-            'relay_source' => 'required|string|in:BLE_MESH,SMS_RELAY'
+            'relay_source' => 'required|string|in:BLE_MESH,SMS_RELAY',
+            'battery_level' => 'nullable|integer|min:0|max:100',
         ]);
 
         $device = Device::where('device_uid', $validated['target_device_uid'])->orWhere('device_uid', 'LIKE', '%' . $validated['target_device_uid'])->firstOrFail();
@@ -55,7 +56,22 @@ class DeviceController
             $device->id, 
             'RELAY_TELEMETRY_' . $validated['relay_source'], 
             $request->ip(), 
-            $request->userAgent()
+            $request->userAgent(),
+            [
+                'message' => $validated['relay_source'] === 'SMS_RELAY'
+                    ? 'SMS location reply received and relayed'
+                    : 'BLE peer location discovered and relayed',
+                'severity' => 'info',
+                'payload' => [
+                    'lat' => (float) $validated['latitude'],
+                    'lng' => (float) $validated['longitude'],
+                    'target_uid' => $device->device_uid,
+                    'source' => $validated['relay_source'] === 'SMS_RELAY' ? 'SMS_REPLY' : 'BLE_RELAY',
+                    'relay_source' => $validated['relay_source'],
+                    'battery_level' => $validated['battery_level'] ?? null,
+                    'received_at' => now()->toIso8601String(),
+                ],
+            ]
         );
 
         try {
