@@ -51,4 +51,14 @@ class AuditLogController {
         ]);
         return response()->json(['success' => true]);
     }
+
+    public function destroy(Request $request, int $id) {
+        $deleted = DB::table('audit_logs')
+            ->where('id', $id)
+            ->where('owner_id', $request->user()->id)
+            ->delete();
+
+        abort_if($deleted === 0, 404, 'Activity log not found');
+        return response()->json(['success' => true]);
+    }
 }

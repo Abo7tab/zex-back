@@ -50,6 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/alerts/{alert}/read', [AlertController::class, 'markRead']);
     
     Route::get('/logs', [\App\Presentation\Http\Controllers\Api\AuditLogController::class, 'index']);
+    Route::delete('/logs/{id}', [\App\Presentation\Http\Controllers\Api\AuditLogController::class, 'destroy'])->whereNumber('id');
     Route::post('/devices/{device}/activity-logs', [\App\Presentation\Http\Controllers\Api\AuditLogController::class, 'storeMobileActivity']);
 });
 
