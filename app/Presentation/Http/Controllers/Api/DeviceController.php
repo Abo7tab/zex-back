@@ -62,9 +62,17 @@ class DeviceController
             app(\App\Domain\Contracts\NotificationServiceInterface::class)->updateDeviceState($device->device_uid, [
                 'last_seen_at' => $device->last_seen_at->toIso8601String(),
                 'last_heartbeat_at' => $device->last_heartbeat_at->toIso8601String(),
-                'latest_lat' => $validated['latitude'],
-                'latest_lng' => $validated['longitude'],
                 'relay_source' => $validated['relay_source']
+            ]);
+            // Keep the same RTDB shape used by online location updates so all
+            // clients render an SMS-derived fix on the normal device map.
+            app(\App\Domain\Contracts\NotificationServiceInterface::class)->syncLastLocation($device->device_uid, [
+                'latitude' => (float) $validated['latitude'],
+                'longitude' => (float) $validated['longitude'],
+                'accuracy' => 10.0,
+                'provider' => 'sms_relay',
+                'recorded_at' => now()->toIso8601String(),
+                'relay_source' => $validated['relay_source'],
             ]);
         } catch (\Exception $e) {}
 

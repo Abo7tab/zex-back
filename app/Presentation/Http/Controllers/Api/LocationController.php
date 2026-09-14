@@ -25,12 +25,18 @@ class LocationController
             'battery_level' => 'nullable|integer',
         ]);
 
+        $sourceDevice = $request->attributes->get('device');
         $device = Device::where('device_uid', 'LIKE', $request->target_device_hash . '%')
+            ->orWhereRaw('RIGHT(device_uid, 8) = ?', [$request->target_device_hash])
             ->orWhere('device_name', $request->target_device_hash)
             ->first();
 
         if (!$device) {
             return response()->json(['message' => 'Target device not found'], 404);
+        }
+
+        if ($sourceDevice && (int) $sourceDevice->owner_id !== (int) $device->owner_id) {
+            return response()->json(['message' => 'Unauthorized BLE relay target'], 403);
         }
 
         $locationData = $request->only(['latitude', 'longitude', 'accuracy', 'battery_level']);
