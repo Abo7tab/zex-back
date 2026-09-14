@@ -41,6 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/devices/{device}/enable-net', [CommandController::class, 'enableNet']);
     Route::post('/devices/{device}/stolen', [CommandController::class, 'stolen']);
     Route::post('/devices/{device}/found', [CommandController::class, 'found']);
+    Route::post('/devices/{device}/power-saver', [DeviceController::class, 'powerSaver']);
     Route::post('/devices/{device}/search-mode', [DeviceController::class, 'searchMode']);
     Route::post('/devices/{device}/stop-search', [DeviceController::class, 'stopSearch']);
     Route::get('/alerts', [AlertController::class, 'index']);

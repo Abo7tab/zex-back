@@ -34,6 +34,7 @@ class Device extends Model
         'device_token_hash',
         'alarm_secret_hash',
         'fcm_token',
+        'is_power_saver',
     ];
 
     protected function casts(): array
@@ -49,6 +50,7 @@ class Device extends Model
             'is_locked' => 'boolean',
             'is_stolen' => 'boolean',
             'is_searching' => 'boolean',
+            'is_power_saver' => 'boolean',
         ];
     }
 

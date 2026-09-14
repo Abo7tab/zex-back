@@ -34,7 +34,7 @@ class DeviceController
 
         $device = Device::where('device_uid', $validated['target_device_uid'])->orWhere('device_uid', 'LIKE', '%' . $validated['target_device_uid'])->firstOrFail();
         
-        // Ensure the owner owns the target device (or relay nodes are all within the same owner)
+        // Ensure the owner owns the target device
         abort_if($device->owner_id !== $request->user()->id, 403, 'Unauthorized');
 
         $device->update([
@@ -72,6 +72,7 @@ class DeviceController
     }
 
     public function register(RegisterDeviceRequest $request, RegisterDeviceAction $action): JsonResponse { [$device, $token] = $action->execute($request->user(), $request->validated()); return response()->json(['device' => DeviceResource::make($device), 'device_token' => $token], 201); }
+    
     public function destroy(Request $request, Device $device, \App\Domain\Contracts\NotificationServiceInterface $firebase): JsonResponse 
     {
         abort_if($device->owner_id !== $request->user()->id, 403, 'Unauthorized');
@@ -83,6 +84,7 @@ class DeviceController
         $device->delete();
         return response()->json(['message' => 'Device deleted']);
     }
+    
     public function heartbeat(HeartbeatRequest $request, ProcessHeartbeatAction $action): JsonResponse 
     { 
         [$device, $commands] = $action->execute($request->attributes->get('device'), $request->validated('battery_level'), $request->input('fcm_token')); 
@@ -91,8 +93,28 @@ class DeviceController
             'pending_commands' => CommandResource::collection($commands),
             'owner_is_searching' => (bool) $device->is_searching,
             'search_interval_seconds' => (int) $device->search_interval_seconds,
-            
+            'is_power_saver' => (bool) $device->is_power_saver,
         ]); 
+    }
+
+    public function powerSaver(Request $request, Device $device): JsonResponse {
+        abort_if($device->owner_id !== $request->user()->id, 403, 'Unauthorized');
+        $validated = $request->validate(['is_power_saver' => 'required|boolean']);
+        $device->update(['is_power_saver' => $validated['is_power_saver']]);
+        
+        $device->commands()->create([
+            'command_type' => $validated['is_power_saver'] ? 'POWER_SAVER_ON' : 'POWER_SAVER_OFF',
+            'status' => 'PENDING',
+            'owner_id' => $request->user()->id
+        ]);
+        
+        try {
+            app(\App\Domain\Contracts\NotificationServiceInterface::class)->updateDeviceState($device->device_uid, [
+                'is_power_saver' => (bool) $device->is_power_saver,
+            ]);
+        } catch (\Exception $e) {}
+
+        return response()->json(DeviceResource::make($device));
     }
 
     public function searchMode(Request $request, Device $device, \App\Application\Device\Actions\SetSearchModeAction $action): JsonResponse
@@ -112,7 +134,6 @@ class DeviceController
 
     public function status(Request $request, Device $device): JsonResponse
     {
-        // Check auth: owner or device token
         $user = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
         $isOwner = $user && $device->owner_id === $user->id;
         $isDevice = $request->header('X-Device-Token') && \Illuminate\Support\Facades\Hash::check($request->header('X-Device-Token'), $device->device_token_hash);
@@ -125,7 +146,8 @@ class DeviceController
             'is_stolen' => (bool) $device->is_stolen,
             'is_screaming' => (bool) $device->is_screaming,
             'is_tracking_continuous' => (bool) $device->is_tracking_continuous,
-            'tracking_interval_minutes' => 0, // placeholder since not stored on device yet
+            'is_power_saver' => (bool) $device->is_power_saver,
+            'tracking_interval_minutes' => 0,
             'search_interval_seconds' => (int) $device->search_interval_seconds,
             'last_seen_at' => $device->last_seen_at,
             'battery_level' => $device->battery_level,
