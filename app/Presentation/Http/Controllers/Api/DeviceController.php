@@ -103,7 +103,7 @@ class DeviceController
         $device->update(['is_power_saver' => $validated['is_power_saver']]);
         
         $device->commands()->create([
-            'command_type' => $validated['is_power_saver'] ? 'POWER_SAVER_ON' : 'POWER_SAVER_OFF',
+            'type' => $validated['is_power_saver'] ? 'POWER_SAVER_ON' : 'POWER_SAVER_OFF',
             'status' => 'PENDING',
             'owner_id' => $request->user()->id
         ]);
