@@ -17,7 +17,7 @@ return [
 
     'paths' => ['api/*', 'sanctum/csrf-cookie'],
 
-    'allowed_methods' => ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
     'allowed_origins' => ['https://zex-nine.vercel.app', 'https://zex-military.vercel.app', 'http://localhost:3000'],
 
@@ -32,3 +32,4 @@ return [
     'supports_credentials' => true,
 
 ];
+
