@@ -22,6 +22,55 @@ class DeviceController
         $device->load(['lastLocation', 'alerts' => fn($q) => $q->where('is_read', false)->latest()->limit(10)]);
         return DeviceResource::make($device); 
     }
+    
+    public function relayTelemetry(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'target_device_uid' => 'required|string',
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+            'relay_source' => 'required|string|in:BLE_MESH,SMS_RELAY'
+        ]);
+
+        $device = Device::where('device_uid', $validated['target_device_uid'])->orWhere('device_uid', 'LIKE', '%' . $validated['target_device_uid'])->firstOrFail();
+        
+        // Ensure the owner owns the target device (or relay nodes are all within the same owner)
+        abort_if($device->owner_id !== $request->user()->id, 403, 'Unauthorized');
+
+        $device->update([
+            'last_seen_at' => now(),
+            'last_heartbeat_at' => now()
+        ]);
+
+        $device->locations()->create([
+            'latitude' => $validated['latitude'],
+            'longitude' => $validated['longitude'],
+            'accuracy' => 10,
+            'is_offline_relay' => true,
+            'recorded_at' => now()
+        ]);
+        
+        \App\Application\Services\AuditLogService::log(
+            $request->user()->id, 
+            $device->id, 
+            'RELAY_TELEMETRY_' . $validated['relay_source'], 
+            $request->ip(), 
+            $request->userAgent()
+        );
+
+        try {
+            app(\App\Domain\Contracts\NotificationServiceInterface::class)->updateDeviceState($device->device_uid, [
+                'last_seen_at' => $device->last_seen_at->toIso8601String(),
+                'last_heartbeat_at' => $device->last_heartbeat_at->toIso8601String(),
+                'latest_lat' => $validated['latitude'],
+                'latest_lng' => $validated['longitude'],
+                'relay_source' => $validated['relay_source']
+            ]);
+        } catch (\Exception $e) {}
+
+        return response()->json(['message' => 'Relay processed successfully']);
+    }
+
     public function register(RegisterDeviceRequest $request, RegisterDeviceAction $action): JsonResponse { [$device, $token] = $action->execute($request->user(), $request->validated()); return response()->json(['device' => DeviceResource::make($device), 'device_token' => $token], 201); }
     public function destroy(Request $request, Device $device, \App\Domain\Contracts\NotificationServiceInterface $firebase): JsonResponse 
     {

@@ -25,6 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/auth/profile', [AuthController::class, 'updateProfile'])->middleware('throttle:60,1');
     Route::put('/auth/security', [AuthController::class, 'updateSecurity'])->middleware('throttle:60,1');
     Route::post('/devices/register', [DeviceController::class, 'register']);
+    Route::post('/devices/relay-telemetry', [DeviceController::class, 'relayTelemetry']);
     Route::delete('/devices/{device}', [DeviceController::class, 'destroy']);
     Route::get('/devices', [DeviceController::class, 'index']);
     Route::get('/devices/{device}', [DeviceController::class, 'show']);
