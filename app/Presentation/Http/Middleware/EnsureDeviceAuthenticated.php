@@ -14,8 +14,17 @@ class EnsureDeviceAuthenticated
 
     public function handle(Request $request, Closure $next): Response
     {
-        $device = is_string($request->input('device_uid')) ? $this->devices->findByUid($request->input('device_uid')) : null;
-        if (! $device || ! Hash::check((string) $request->header('X-Device-Token'), $device->device_token_hash)) return response()->json(['message' => 'Unauthenticated device.'], 401);
+        $token = (string) $request->header('X-Device-Token');
+        $uid = $request->input('device_uid');
+        $device = is_string($uid) && trim($uid) !== ''
+            ? $this->devices->findByUid($uid)
+            : $this->devices->findByToken($token);
+
+        // Legacy mobile BLE/SMS relay payloads omit device_uid. The token still
+        // identifies the source device, and an explicit UID remains cross-checked.
+        if (! $device || trim($token) === '' || ! Hash::check($token, (string) $device->device_token_hash)) {
+            return response()->json(['message' => 'Unauthenticated device.'], 401);
+        }
         $request->attributes->set('device', $device);
         return $next($request);
     }

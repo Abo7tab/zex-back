@@ -10,6 +10,7 @@ interface DeviceRepositoryInterface
 {
     public function createForOwner(Owner $owner, array $attributes): Device;
     public function findByUid(string $uid): ?Device;
+    public function findByToken(string $token): ?Device;
     public function findOwnedById(Owner $owner, int $id): ?Device;
     public function allForOwner(Owner $owner): Collection;
     public function update(Device $device, array $attributes): Device;
