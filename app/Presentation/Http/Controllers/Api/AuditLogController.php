@@ -13,17 +13,33 @@ class AuditLogController {
             ->orderByDesc('audit_logs.created_at')
             ->limit(200)
             ->get()
-            ->map(function ($log) {
+            ->map(function ($log) use ($user) {
                 $details = json_decode($log->details, true) ?? [];
+                $payload = $details['payload'] ?? null;
+
+                // Resolve target_uid → human-readable device name
+                $targetDeviceName = null;
+                if (!empty($payload['target_uid'])) {
+                    $targetDevice = DB::table('devices')
+                        ->where('owner_id', $user->id)
+                        ->where(function ($q) use ($payload) {
+                            $q->where('device_uid', $payload['target_uid'])
+                              ->orWhere('device_uid', 'LIKE', '%' . $payload['target_uid'] . '%');
+                        })
+                        ->value('device_name');
+                    $targetDeviceName = $targetDevice ?: $payload['target_uid'];
+                }
+
                 return [
-                    'id' => $log->id,
-                    'timestamp' => $log->created_at,
-                    'action' => $log->action,
-                    'device_name' => $log->device_name,
-                    'severity' => $details['severity'] ?? 'info',
-                    'message' => $details['message'] ?? 'Activity Logged',
-                    'payload' => $details['payload'] ?? null,
-                    'metadata' => collect($details)->except(['message', 'severity', 'payload'])->all(),
+                    'id'                 => $log->id,
+                    'timestamp'          => $log->created_at,
+                    'action'             => $log->action,
+                    'device_name'        => $log->device_name,
+                    'target_device_name' => $targetDeviceName,
+                    'severity'           => $details['severity'] ?? 'info',
+                    'message'            => $details['message'] ?? 'Activity Logged',
+                    'payload'            => $payload,
+                    'metadata'           => collect($details)->except(['message', 'severity', 'payload'])->all(),
                 ];
             });
         return response()->json($logs);
