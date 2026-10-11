@@ -4,11 +4,13 @@ namespace App\Presentation\Http\Controllers\Api;
 
 use App\Application\Jobs\SyncFirebaseDeviceState;
 use App\Application\Jobs\SyncFirebaseLastLocation;
+use App\Application\Command\Actions\IssueDeviceCommandAction;
 use App\Application\Device\Actions\ProcessHeartbeatAction;
 use App\Application\Device\Actions\RegisterDeviceAction;
 use App\Application\Device\Actions\GetOwnedDeviceAction;
 use App\Application\Device\Actions\GetOwnerDevicesAction;
 use App\Domain\Contracts\NotificationServiceInterface;
+use App\Domain\Command\Enums\CommandType;
 use App\Domain\Device\Models\Device;
 use App\Presentation\Http\Requests\HeartbeatRequest;
 use App\Presentation\Http\Requests\RegisterDeviceRequest;
@@ -121,22 +123,24 @@ class DeviceController
         ]); 
     }
 
-    public function powerSaver(Request $request, Device $device): JsonResponse {
+    public function powerSaver(Request $request, Device $device, IssueDeviceCommandAction $action): JsonResponse {
         abort_if($device->owner_id !== $request->user()->id, 403, 'Unauthorized');
         $validated = $request->validate(['is_power_saver' => 'required|boolean']);
-        $device->update(['is_power_saver' => $validated['is_power_saver']]);
-        
-        $device->commands()->create([
-            'type' => $validated['is_power_saver'] ? 'POWER_SAVER_ON' : 'POWER_SAVER_OFF',
-            'status' => 'PENDING',
-            'owner_id' => $request->user()->id
-        ]);
-        
-        $this->dispatchFirebaseJob(new SyncFirebaseDeviceState($device->device_uid, [
-                'is_power_saver' => (bool) $device->is_power_saver,
-        ]));
+        $isPowerSaver = (bool) $validated['is_power_saver'];
+        $command = $action->execute(
+            $request->user(),
+            $device,
+            $isPowerSaver ? CommandType::POWER_SAVER_ON : CommandType::POWER_SAVER_OFF,
+            [],
+            ['is_power_saver' => $isPowerSaver]
+        );
 
-        return response()->json(['status' => 'success', 'is_power_saver' => $device->is_power_saver, 'data' => DeviceResource::make($device)]);
+        return response()->json([
+            'status' => 'success',
+            'is_power_saver' => $isPowerSaver,
+            'command' => CommandResource::make($command),
+            'data' => DeviceResource::make($device->refresh()),
+        ]);
     }
 
     public function searchMode(Request $request, Device $device, \App\Application\Device\Actions\SetSearchModeAction $action): JsonResponse

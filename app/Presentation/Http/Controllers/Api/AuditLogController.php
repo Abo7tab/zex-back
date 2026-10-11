@@ -106,6 +106,14 @@ class AuditLogController {
         return response()->json(['success' => true]);
     }
 
+    public function clear(Request $request) {
+        $deleted = DB::table('audit_logs')
+            ->where('owner_id', $request->user()->id)
+            ->delete();
+
+        return response()->json(['success' => true, 'deleted' => $deleted]);
+    }
+
     public function extendRetention(Request $request, int $id) {
         abort_if(! $this->hasRetentionColumns(), 422, 'Activity log retention is not enabled yet.');
 
@@ -137,13 +145,25 @@ class AuditLogController {
 
     private function pruneExpiredLogs(): void
     {
+        $threeDaysAgo = now()->subDays(3);
+
         if (! $this->hasRetentionColumns()) {
+            DB::table('audit_logs')
+                ->where('created_at', '<=', $threeDaysAgo)
+                ->delete();
             return;
         }
 
         DB::table('audit_logs')
-            ->whereNotNull('expires_at')
-            ->where('expires_at', '<=', now())
+            ->where(function ($query) use ($threeDaysAgo) {
+                $query->where(function ($inner) {
+                    $inner->whereNotNull('expires_at')
+                        ->where('expires_at', '<=', now());
+                })->orWhere(function ($inner) use ($threeDaysAgo) {
+                    $inner->whereNull('expires_at')
+                        ->where('created_at', '<=', $threeDaysAgo);
+                });
+            })
             ->delete();
     }
 
