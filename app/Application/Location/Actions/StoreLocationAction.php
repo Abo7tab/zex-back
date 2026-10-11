@@ -25,6 +25,7 @@ class StoreLocationAction
     {
         $data = $data + ['recorded_at' => $data['recorded_at'] ?? now()];
         $this->cacheLatestLocation($device, $data);
+        $this->syncLatestLocationForMap($device, $data, $force);
 
         if (! $force && ! $this->shouldPersist($device)) {
             return null;
@@ -42,8 +43,6 @@ class StoreLocationAction
         $this->dispatchFirebaseJob(new SyncFirebaseDeviceState($device->device_uid, [
             'last_heartbeat_at' => $now->toIso8601String(),
         ]));
-
-        $this->dispatchFirebaseJob(new SyncFirebaseLastLocation($device->device_uid, $location->toArray()));
 
         return $location;
     }
@@ -122,6 +121,55 @@ class StoreLocationAction
             ], now()->addMinutes(30));
         } catch (\Throwable) {
             // Location writes must keep working even if the cache backend is unavailable.
+        }
+    }
+
+    private function syncLatestLocationForMap(Device $device, array $data, bool $force): void
+    {
+        if (! isset($data['latitude'], $data['longitude'])) {
+            return;
+        }
+
+        $latitude = (float) $data['latitude'];
+        $longitude = (float) $data['longitude'];
+
+        if ($latitude === 0.0 && $longitude === 0.0) {
+            return;
+        }
+
+        if (! $force && ! $this->reserveMapSyncSlot($device)) {
+            return;
+        }
+
+        $recordedAt = $data['recorded_at'] ?? now();
+        if (! $recordedAt instanceof \DateTimeInterface) {
+            $recordedAt = now();
+        }
+
+        $this->dispatchFirebaseJob(new SyncFirebaseLastLocation($device->device_uid, [
+            'device_id' => $device->id,
+            'latitude' => $latitude,
+            'longitude' => $longitude,
+            'accuracy' => isset($data['accuracy']) ? (float) $data['accuracy'] : null,
+            'speed' => isset($data['speed']) ? (float) $data['speed'] : null,
+            'provider' => $data['provider'] ?? null,
+            'battery_level' => $data['battery_level'] ?? null,
+            'network_type' => $data['network_type'] ?? null,
+            'recorded_at' => $recordedAt->format(\DateTimeInterface::ATOM),
+        ]));
+    }
+
+    private function reserveMapSyncSlot(Device $device): bool
+    {
+        $seconds = (int) env('LOCATION_MAP_SYNC_SECONDS', 10);
+        if ($seconds <= 0) {
+            return true;
+        }
+
+        try {
+            return Cache::add("devices:{$device->id}:location-map-sync-slot", true, now()->addSeconds($seconds));
+        } catch (\Throwable) {
+            return true;
         }
     }
 
