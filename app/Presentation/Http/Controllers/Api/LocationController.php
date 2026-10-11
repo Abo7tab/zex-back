@@ -133,9 +133,13 @@ class LocationController
         return response()->json(['message' => 'SMS Relay processed successfully']);
     }
 
-    private function dispatchFirebaseJob(object $job): void
+    private function dispatchFirebaseJob(object $job, bool $sync = true): void
     {
         try {
+            if ($sync && method_exists($job, 'handle')) {
+                $job->handle(app(NotificationServiceInterface::class));
+                return;
+            }
             Bus::dispatch($job);
         } catch (\Throwable $e) {
             if (method_exists($job, 'handle')) {

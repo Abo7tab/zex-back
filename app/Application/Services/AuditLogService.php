@@ -2,19 +2,14 @@
 
 namespace App\Application\Services;
 
-use App\Application\Jobs\WriteAuditLog;
-use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AuditLogService
 {
     public static function log($ownerId, $deviceId, string $action, ?string $ipAddress = null, ?string $userAgent = null, array $details = []): void
     {
-        try {
-            Bus::dispatch(new WriteAuditLog($ownerId, $deviceId, $action, $ipAddress, $userAgent, $details));
-        } catch (\Throwable $e) {
-            self::writeNow($ownerId, $deviceId, $action, $ipAddress, $userAgent, $details);
-        }
+        self::writeNow($ownerId, $deviceId, $action, $ipAddress, $userAgent, $details);
     }
 
     public static function writeNow($ownerId, $deviceId, string $action, ?string $ipAddress = null, ?string $userAgent = null, array $details = []): void
@@ -32,7 +27,7 @@ class AuditLogService
                 'updated_at' => $now,
             ];
 
-            if (\Illuminate\Support\Facades\Schema::hasColumn('audit_logs', 'expires_at')) {
+            if (Schema::hasColumn('audit_logs', 'expires_at')) {
                 $row['expires_at'] = $now->copy()->addDays(3);
             }
 

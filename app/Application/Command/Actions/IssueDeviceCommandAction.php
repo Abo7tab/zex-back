@@ -84,7 +84,11 @@ class IssueDeviceCommandAction
             ]
         );
         
-        $this->dispatchFirebaseJob(new PushFirebaseCommand($device->device_uid, $command->toArray()));
+        // Only push commands that the mobile client supports in its CommandType enum
+        // Mobile enum: LOCATE, CONTINUOUS_TRACK, STOP_TRACKING, SCREAM, STOP_SCREAM, LOCK, ENABLE_NET, STATUS, STOLEN_MODE, FOUND_MODE, PHOTO
+        if (! in_array($type, [CommandType::POWER_SAVER_ON, CommandType::POWER_SAVER_OFF], true)) {
+            $this->dispatchFirebaseJob(new PushFirebaseCommand($device->device_uid, $command->toArray()));
+        }
 
         if ($device->fcm_token) {
             $fcmPayload = array_merge([
@@ -97,9 +101,13 @@ class IssueDeviceCommandAction
         return $command;
     }
 
-    private function dispatchFirebaseJob(object $job): void
+    private function dispatchFirebaseJob(object $job, bool $sync = true): void
     {
         try {
+            if ($sync && method_exists($job, 'handle')) {
+                $job->handle($this->firebase);
+                return;
+            }
             Bus::dispatch($job);
         } catch (\Throwable $e) {
             if (method_exists($job, 'handle')) {

@@ -57,9 +57,13 @@ class ProcessCommandResponseAction
         return $updated;
     }
 
-    private function dispatchFirebaseJob(object $job): void
+    private function dispatchFirebaseJob(object $job, bool $sync = true): void
     {
         try {
+            if ($sync && method_exists($job, 'handle')) {
+                $job->handle($this->firebase);
+                return;
+            }
             Bus::dispatch($job);
         } catch (\Throwable $e) {
             if (method_exists($job, 'handle')) {

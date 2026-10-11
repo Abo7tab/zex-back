@@ -55,8 +55,8 @@ class AuditLogController {
                 return [
                     'id'                 => $log->id,
                     'device_id'          => $log->device_id,
-                    'timestamp'          => $log->created_at,
-                    'expires_at'         => $hasRetentionColumns ? $log->expires_at : null,
+                    'timestamp'          => $log->created_at ? \Carbon\Carbon::parse($log->created_at)->toIso8601String() : null,
+                    'expires_at'         => $hasRetentionColumns && $log->expires_at ? \Carbon\Carbon::parse($log->expires_at)->toIso8601String() : null,
                     'retention_warning'  => $warnsBeforeDeletion,
                     'retention_warning_message' => $warnsBeforeDeletion ? 'This phone log will be deleted in less than 24 hours.' : null,
                     'can_extend_retention' => $expiresAt && ! $log->retention_extended_at,
@@ -174,6 +174,10 @@ class AuditLogController {
 
     private function surfaceCommandWaitStates(int $ownerId): void
     {
+        if (! Schema::hasTable('commands')) {
+            return;
+        }
+
         $pendingSeconds = max(30, (int) env('COMMAND_PENDING_NOTICE_SECONDS', 60));
         $timeoutSeconds = max(30, (int) env('COMMAND_IN_FLIGHT_SECONDS', 120));
 
