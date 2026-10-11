@@ -26,6 +26,7 @@ class StoreLocationAction
         $data = $data + ['recorded_at' => $data['recorded_at'] ?? now()];
         $this->cacheLatestLocation($device, $data);
         $this->syncLatestLocationForMap($device, $data, $force);
+        $this->logLocationReceived($device, $data, $force);
 
         if (! $force && ! $this->shouldPersist($device)) {
             return null;
@@ -45,6 +46,56 @@ class StoreLocationAction
         ]));
 
         return $location;
+    }
+
+    private function logLocationReceived(Device $device, array $data, bool $force): void
+    {
+        if (! isset($data['latitude'], $data['longitude'])) {
+            return;
+        }
+
+        $latitude = (float) $data['latitude'];
+        $longitude = (float) $data['longitude'];
+
+        if ($latitude === 0.0 && $longitude === 0.0) {
+            return;
+        }
+
+        $seconds = $force ? 5 : (int) env('LOCATION_RECEIVED_LOG_SECONDS', 20);
+        if ($seconds > 0) {
+            try {
+                if (! Cache::add("devices:{$device->id}:location-received-log-slot", true, now()->addSeconds($seconds))) {
+                    return;
+                }
+            } catch (\Throwable) {
+                // Logging should never block location ingestion.
+            }
+        }
+
+        $recordedAt = $data['recorded_at'] ?? now();
+        if (! $recordedAt instanceof \DateTimeInterface) {
+            $recordedAt = now();
+        }
+
+        \App\Application\Services\AuditLogService::log(
+            $device->owner_id,
+            $device->id,
+            'LOCATION_RECEIVED',
+            null,
+            null,
+            [
+                'message' => 'The phone sent a fresh location update.',
+                'severity' => 'info',
+                'payload' => [
+                    'lat' => $latitude,
+                    'lng' => $longitude,
+                    'accuracy' => isset($data['accuracy']) ? (float) $data['accuracy'] : null,
+                    'provider' => $data['provider'] ?? null,
+                    'battery_level' => $data['battery_level'] ?? null,
+                    'recorded_at' => $recordedAt->format(\DateTimeInterface::ATOM),
+                ],
+            ]
+        );
     }
 
     private function shouldPersist(Device $device): bool

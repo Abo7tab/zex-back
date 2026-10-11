@@ -50,6 +50,7 @@ class AuditLogController {
 
                 return [
                     'id'                 => $log->id,
+                    'device_id'          => $log->device_id,
                     'timestamp'          => $log->created_at,
                     'expires_at'         => $hasRetentionColumns ? $log->expires_at : null,
                     'retention_warning'  => $warnsBeforeDeletion,

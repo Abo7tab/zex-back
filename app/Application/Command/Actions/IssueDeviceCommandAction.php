@@ -5,6 +5,7 @@ namespace App\Application\Command\Actions;
 use App\Application\Jobs\PushFirebaseCommand;
 use App\Application\Jobs\SendFirebaseDeviceNotification;
 use App\Application\Jobs\SyncFirebaseDeviceState;
+use App\Application\Services\AuditLogService;
 use App\Domain\Command\Enums\CommandStatus;
 use App\Domain\Command\Enums\CommandType;
 use App\Domain\Command\Models\Command;
@@ -27,6 +28,34 @@ class IssueDeviceCommandAction
     public function execute(Owner $owner, Device $device, CommandType $type, array $parameters = [], array $deviceState = []): Command
     {
         if ($device->owner_id !== $owner->id) throw new AuthorizationException();
+
+        if ($type === CommandType::LOCATE) {
+            $existingLocate = Command::query()
+                ->where('device_id', $device->id)
+                ->where('type', CommandType::LOCATE->value)
+                ->whereIn('status', [CommandStatus::PENDING->value, CommandStatus::SENT->value])
+                ->where('created_at', '>=', now()->subSeconds((int) env('LOCATE_DEDUPE_SECONDS', 45)))
+                ->latest('id')
+                ->first();
+
+            if ($existingLocate) {
+                AuditLogService::log(
+                    $owner->id,
+                    $device->id,
+                    'COMMAND_DEDUPED',
+                    null,
+                    null,
+                    [
+                        'command_id' => $existingLocate->id,
+                        'command_type' => $type->value,
+                        'message' => 'A recent location request is already waiting for the phone.',
+                    ]
+                );
+
+                return $existingLocate;
+            }
+        }
+
         if ($deviceState !== []) {
             $persistedState = collect($deviceState)
                 ->filter(fn ($value, $column) => Schema::hasColumn('devices', (string) $column))
