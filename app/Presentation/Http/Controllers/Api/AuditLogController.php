@@ -1,13 +1,17 @@
 <?php
 namespace App\Presentation\Http\Controllers\Api;
+use App\Domain\Command\Enums\CommandStatus;
+use App\Domain\Command\Models\Command;
 use App\Domain\Device\Models\Device;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class AuditLogController {
     public function index(Request $request) {
         $this->pruneExpiredLogs();
+        $this->surfaceCommandWaitStates($request->user()->id);
 
         $user = $request->user();
         $hasRetentionColumns = $this->hasRetentionColumns();
@@ -166,6 +170,79 @@ class AuditLogController {
                 });
             })
             ->delete();
+    }
+
+    private function surfaceCommandWaitStates(int $ownerId): void
+    {
+        $pendingSeconds = max(30, (int) env('COMMAND_PENDING_NOTICE_SECONDS', 60));
+        $timeoutSeconds = max(30, (int) env('COMMAND_IN_FLIGHT_SECONDS', 120));
+
+        Command::query()
+            ->where('owner_id', $ownerId)
+            ->where('status', CommandStatus::PENDING->value)
+            ->where('created_at', '<=', now()->subSeconds($pendingSeconds))
+            ->orderByDesc('id')
+            ->limit(30)
+            ->get()
+            ->each(function (Command $command) use ($pendingSeconds) {
+                $cacheKey = "commands:{$command->id}:pending-wait-notice";
+                if (! Cache::add($cacheKey, true, now()->addMinutes(5))) {
+                    return;
+                }
+
+                \App\Application\Services\AuditLogService::log(
+                    $command->owner_id,
+                    $command->device_id,
+                    'COMMAND_WAITING',
+                    null,
+                    null,
+                    [
+                        'command_id' => $command->id,
+                        'command_type' => $command->type?->value,
+                        'status' => CommandStatus::PENDING->value,
+                        'pending_seconds' => $pendingSeconds,
+                        'message' => 'The command is still waiting for the phone to check in.',
+                    ]
+                );
+            });
+
+        Command::query()
+            ->where('owner_id', $ownerId)
+            ->where('status', CommandStatus::SENT->value)
+            ->whereNotNull('sent_at')
+            ->where('sent_at', '<', now()->subSeconds($timeoutSeconds))
+            ->orderByDesc('id')
+            ->limit(30)
+            ->get()
+            ->each(function (Command $command) use ($timeoutSeconds) {
+                $command->update([
+                    'status' => CommandStatus::FAILED,
+                    'response' => [
+                        'error' => "No device response within {$timeoutSeconds} seconds.",
+                        'timeout_seconds' => $timeoutSeconds,
+                    ],
+                ]);
+
+                $cacheKey = "commands:{$command->id}:timeout-notice";
+                if (! Cache::add($cacheKey, true, now()->addDay())) {
+                    return;
+                }
+
+                \App\Application\Services\AuditLogService::log(
+                    $command->owner_id,
+                    $command->device_id,
+                    'COMMAND_TIMEOUT',
+                    null,
+                    null,
+                    [
+                        'command_id' => $command->id,
+                        'command_type' => $command->type?->value,
+                        'status' => CommandStatus::FAILED->value,
+                        'timeout_seconds' => $timeoutSeconds,
+                        'message' => 'The phone received the command but did not report completion in time.',
+                    ]
+                );
+            });
     }
 
     private function hasRetentionColumns(): bool
