@@ -2,6 +2,9 @@
 
 namespace App\Application\Command\Actions;
 
+use App\Application\Jobs\PushFirebaseCommand;
+use App\Application\Jobs\SendFirebaseDeviceNotification;
+use App\Application\Jobs\SyncFirebaseDeviceState;
 use App\Domain\Command\Enums\CommandStatus;
 use App\Domain\Command\Enums\CommandType;
 use App\Domain\Command\Models\Command;
@@ -10,6 +13,8 @@ use App\Domain\Device\Models\Device;
 use App\Domain\Device\Repositories\DeviceRepositoryInterface;
 use App\Domain\Owner\Models\Owner;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Schema;
 
 class IssueDeviceCommandAction
 {
@@ -23,13 +28,15 @@ class IssueDeviceCommandAction
     {
         if ($device->owner_id !== $owner->id) throw new AuthorizationException();
         if ($deviceState !== []) {
-            $this->devices->update($device, $deviceState);
-            // Sync status to RTDB if state changes
-            try {
-                $this->firebase->updateDeviceState($device->device_uid, $deviceState);
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Firebase status sync failed', ['error' => $e->getMessage()]);
+            $persistedState = collect($deviceState)
+                ->filter(fn ($value, $column) => Schema::hasColumn('devices', (string) $column))
+                ->all();
+
+            if ($persistedState !== []) {
+                $this->devices->update($device, $persistedState);
             }
+
+            $this->dispatchFirebaseJob(new SyncFirebaseDeviceState($device->device_uid, $persistedState !== [] ? $persistedState : $deviceState));
         }
         
         $command = $this->commands->create($device, $owner, ['type' => $type, 'status' => CommandStatus::PENDING, 'parameters' => $parameters]);
@@ -48,19 +55,27 @@ class IssueDeviceCommandAction
             ]
         );
         
-        try {
-            $this->firebase->pushCommandRealtime($device->device_uid, $command->toArray());
-            if ($device->fcm_token) {
-                $fcmPayload = array_merge([
-                    'id'   => (string) $command->id,
-                    'type' => (string) $command->type->value,
-                ], $parameters);
-                $this->firebase->sendToDevice($device->fcm_token, 'New Command', "Command: {$type->value}", $fcmPayload);
-            }
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Firebase command push failed', ['error' => $e->getMessage()]);
+        $this->dispatchFirebaseJob(new PushFirebaseCommand($device->device_uid, $command->toArray()));
+
+        if ($device->fcm_token) {
+            $fcmPayload = array_merge([
+                'id'   => (string) $command->id,
+                'type' => (string) $command->type->value,
+            ], $parameters);
+            $this->dispatchFirebaseJob(new SendFirebaseDeviceNotification($device->fcm_token, 'New Command', "Command: {$type->value}", $fcmPayload));
         }
         
         return $command;
+    }
+
+    private function dispatchFirebaseJob(object $job): void
+    {
+        try {
+            Bus::dispatch($job);
+        } catch (\Throwable $e) {
+            if (method_exists($job, 'handle')) {
+                $job->handle($this->firebase);
+            }
+        }
     }
 }

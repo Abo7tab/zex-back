@@ -18,23 +18,30 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(\App\Domain\Contracts\NotificationServiceInterface::class, \App\Infrastructure\Firebase\FirebaseService::class);
+        $this->app->singleton(
+            \App\Domain\Contracts\NotificationServiceInterface::class,
+            $this->app->environment('testing')
+                ? \App\Infrastructure\Firebase\NullNotificationService::class
+                : \App\Infrastructure\Firebase\FirebaseService::class
+        );
         $this->app->bind(OwnerRepositoryInterface::class, EloquentOwnerRepository::class);
         $this->app->bind(DeviceRepositoryInterface::class, EloquentDeviceRepository::class);
         $this->app->bind(CommandRepositoryInterface::class, EloquentCommandRepository::class);
         $this->app->bind(LocationRepositoryInterface::class, EloquentLocationRepository::class);
         $this->app->bind(AlertRepositoryInterface::class, EloquentAlertRepository::class);
 
-        $this->app->extend(\Kreait\Firebase\Factory::class, function ($factory, $app) {
-            $options = \Kreait\Firebase\Http\HttpClientOptions::default()
-                ->withGuzzleConfigOption('curl', [
-                    \CURLOPT_IPRESOLVE => \CURL_IPRESOLVE_V4,
-                    \CURLOPT_HTTP_VERSION => \CURL_HTTP_VERSION_1_1,
-                ])
-                ->withConnectTimeout(5)
-                ->withTimeout(10);
+        if (! $this->app->environment('testing')) {
+            $this->app->extend(\Kreait\Firebase\Factory::class, function ($factory, $app) {
+                $options = \Kreait\Firebase\Http\HttpClientOptions::default()
+                    ->withGuzzleConfigOption('curl', [
+                        \CURLOPT_IPRESOLVE => \CURL_IPRESOLVE_V4,
+                        \CURLOPT_HTTP_VERSION => \CURL_HTTP_VERSION_1_1,
+                    ])
+                    ->withConnectTimeout(5)
+                    ->withTimeout(10);
 
-            return $factory->withHttpClientOptions($options);
-        });
+                return $factory->withHttpClientOptions($options);
+            });
+        }
     }
 }

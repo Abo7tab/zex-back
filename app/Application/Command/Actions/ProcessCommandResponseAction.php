@@ -2,10 +2,13 @@
 
 namespace App\Application\Command\Actions;
 
+use App\Application\Jobs\RemoveFirebaseCommand;
+use App\Application\Jobs\SyncFirebaseDeviceState;
 use App\Domain\Command\Enums\CommandStatus;
 use App\Domain\Command\Models\Command;
 use App\Domain\Command\Repositories\CommandRepositoryInterface;
 use App\Domain\Device\Models\Device;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -28,12 +31,13 @@ class ProcessCommandResponseAction
         }
         $updated = $this->commands->update($command, ['status' => $status, 'response' => $response, 'executed_at' => $status === CommandStatus::EXECUTED ? now() : null]);
         
-        $device->update(['last_heartbeat_at' => now()]);
-        $this->firebase->updateDeviceState($device->device_uid, [
-            'last_heartbeat_at' => now()->toIso8601String(),
-        ]);
+        $now = now();
+        $device->update(['last_heartbeat_at' => $now]);
+        $this->dispatchFirebaseJob(new SyncFirebaseDeviceState($device->device_uid, [
+            'last_heartbeat_at' => $now->toIso8601String(),
+        ]));
         
-        $this->firebase->removeCommandRealtime($device->device_uid, $command->id);
+        $this->dispatchFirebaseJob(new RemoveFirebaseCommand($device->device_uid, $command->id));
 
         \App\Application\Services\AuditLogService::log(
             $device->owner_id,
@@ -51,5 +55,16 @@ class ProcessCommandResponseAction
             ]
         );
         return $updated;
+    }
+
+    private function dispatchFirebaseJob(object $job): void
+    {
+        try {
+            Bus::dispatch($job);
+        } catch (\Throwable $e) {
+            if (method_exists($job, 'handle')) {
+                $job->handle($this->firebase);
+            }
+        }
     }
 }

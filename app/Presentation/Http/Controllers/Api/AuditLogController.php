@@ -1,38 +1,60 @@
 <?php
 namespace App\Presentation\Http\Controllers\Api;
+use App\Domain\Device\Models\Device;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AuditLogController {
     public function index(Request $request) {
+        $this->pruneExpiredLogs();
+
         $user = $request->user();
-        $logs = DB::table('audit_logs')
+        $hasRetentionColumns = $this->hasRetentionColumns();
+        $rawLogs = DB::table('audit_logs')
             ->leftJoin('devices', 'audit_logs.device_id', '=', 'devices.id')
             ->where('audit_logs.owner_id', $user->id)
             ->select('audit_logs.*', 'devices.device_name')
             ->orderByDesc('audit_logs.created_at')
             ->limit(200)
-            ->get()
-            ->map(function ($log) use ($user) {
+            ->get();
+
+        $ownerDevices = DB::table('devices')
+            ->where('owner_id', $user->id)
+            ->pluck('device_name', 'device_uid');
+
+        $logs = $rawLogs
+            ->map(function ($log) use ($ownerDevices, $hasRetentionColumns) {
                 $details = json_decode($log->details, true) ?? [];
                 $payload = $details['payload'] ?? null;
 
-                // Resolve target_uid → human-readable device name
                 $targetDeviceName = null;
                 if (!empty($payload['target_uid'])) {
-                    $targetDevice = DB::table('devices')
-                        ->where('owner_id', $user->id)
-                        ->where(function ($q) use ($payload) {
-                            $q->where('device_uid', $payload['target_uid'])
-                              ->orWhere('device_uid', 'LIKE', '%' . $payload['target_uid'] . '%');
-                        })
-                        ->value('device_name');
-                    $targetDeviceName = $targetDevice ?: $payload['target_uid'];
+                    $targetUid = (string) $payload['target_uid'];
+                    $targetDeviceName = $ownerDevices[$targetUid] ?? null;
+
+                    if (! $targetDeviceName) {
+                        foreach ($ownerDevices as $deviceUid => $deviceName) {
+                            if (str_contains((string) $deviceUid, $targetUid) || str_contains($targetUid, (string) $deviceUid)) {
+                                $targetDeviceName = $deviceName;
+                                break;
+                            }
+                        }
+                    }
+
+                    $targetDeviceName ??= $targetUid;
                 }
+
+                $expiresAt = $hasRetentionColumns && $log->expires_at ? \Carbon\Carbon::parse($log->expires_at) : null;
+                $warnsBeforeDeletion = $expiresAt && $expiresAt->isFuture() && $expiresAt->lessThanOrEqualTo(now()->addDay());
 
                 return [
                     'id'                 => $log->id,
                     'timestamp'          => $log->created_at,
+                    'expires_at'         => $hasRetentionColumns ? $log->expires_at : null,
+                    'retention_warning'  => $warnsBeforeDeletion,
+                    'retention_warning_message' => $warnsBeforeDeletion ? 'This phone log will be deleted in less than 24 hours.' : null,
+                    'can_extend_retention' => $expiresAt && ! $log->retention_extended_at,
                     'action'             => $log->action,
                     'device_name'        => $log->device_name,
                     'target_device_name' => $targetDeviceName,
@@ -46,25 +68,31 @@ class AuditLogController {
     }
 
     public function storeMobileActivity(Request $request) {
-        $device = $request->attributes->get('device');
+        $device = $request->attributes->get('device') ?: $request->route('device');
+        abort_if(! $device instanceof Device, 422, 'Device context is required.');
+        if ($request->user()) {
+            abort_if((int) $device->owner_id !== (int) $request->user()->id, 403, 'Unauthorized');
+        }
+
         $request->validate([
             'message' => 'required|string', 
             'severity' => 'nullable|string', 
             'payload' => 'nullable|array'
         ]);
         
-        DB::table('audit_logs')->insert([
-            'owner_id' => $device->owner_id,
-            'device_id' => $device->id,
-            'action' => 'mobile_activity',
-            'details' => json_encode([
+        \App\Application\Services\AuditLogService::log(
+            $device->owner_id,
+            $device->id,
+            'mobile_activity',
+            null,
+            null,
+            [
                 'message' => $request->message, 
                 'severity' => $request->severity ?? 'info', 
                 'payload' => $request->payload
-            ]),
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
+            ]
+        );
+
         return response()->json(['success' => true]);
     }
 
@@ -76,5 +104,52 @@ class AuditLogController {
 
         abort_if($deleted === 0, 404, 'Activity log not found');
         return response()->json(['success' => true]);
+    }
+
+    public function extendRetention(Request $request, int $id) {
+        abort_if(! $this->hasRetentionColumns(), 422, 'Activity log retention is not enabled yet.');
+
+        $log = DB::table('audit_logs')
+            ->where('id', $id)
+            ->where('owner_id', $request->user()->id)
+            ->first();
+
+        abort_if(! $log, 404, 'Activity log not found');
+        abort_if($log->retention_extended_at, 422, 'Activity log retention can only be extended once.');
+
+        $currentExpiry = $log->expires_at ? \Carbon\Carbon::parse($log->expires_at) : now();
+        $newExpiry = ($currentExpiry->isFuture() ? $currentExpiry : now())->addDays(3);
+
+        DB::table('audit_logs')
+            ->where('id', $id)
+            ->update([
+                'expires_at' => $newExpiry,
+                'retention_extended_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'expires_at' => $newExpiry->toIso8601String(),
+            'can_extend_retention' => false,
+        ]);
+    }
+
+    private function pruneExpiredLogs(): void
+    {
+        if (! $this->hasRetentionColumns()) {
+            return;
+        }
+
+        DB::table('audit_logs')
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '<=', now())
+            ->delete();
+    }
+
+    private function hasRetentionColumns(): bool
+    {
+        return Schema::hasColumn('audit_logs', 'expires_at')
+            && Schema::hasColumn('audit_logs', 'retention_extended_at');
     }
 }

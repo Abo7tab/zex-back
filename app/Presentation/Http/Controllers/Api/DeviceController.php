@@ -2,10 +2,13 @@
 
 namespace App\Presentation\Http\Controllers\Api;
 
+use App\Application\Jobs\SyncFirebaseDeviceState;
+use App\Application\Jobs\SyncFirebaseLastLocation;
 use App\Application\Device\Actions\ProcessHeartbeatAction;
 use App\Application\Device\Actions\RegisterDeviceAction;
 use App\Application\Device\Actions\GetOwnedDeviceAction;
 use App\Application\Device\Actions\GetOwnerDevicesAction;
+use App\Domain\Contracts\NotificationServiceInterface;
 use App\Domain\Device\Models\Device;
 use App\Presentation\Http\Requests\HeartbeatRequest;
 use App\Presentation\Http\Requests\RegisterDeviceRequest;
@@ -13,6 +16,7 @@ use App\Presentation\Http\Resources\CommandResource;
 use App\Presentation\Http\Resources\DeviceResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
 
 class DeviceController
 {
@@ -74,23 +78,19 @@ class DeviceController
             ]
         );
 
-        try {
-            app(\App\Domain\Contracts\NotificationServiceInterface::class)->updateDeviceState($device->device_uid, [
+        $this->dispatchFirebaseJob(new SyncFirebaseDeviceState($device->device_uid, [
                 'last_seen_at' => $device->last_seen_at->toIso8601String(),
                 'last_heartbeat_at' => $device->last_heartbeat_at->toIso8601String(),
                 'relay_source' => $validated['relay_source']
-            ]);
-            // Keep the same RTDB shape used by online location updates so all
-            // clients render an SMS-derived fix on the normal device map.
-            app(\App\Domain\Contracts\NotificationServiceInterface::class)->syncLastLocation($device->device_uid, [
+        ]));
+        $this->dispatchFirebaseJob(new SyncFirebaseLastLocation($device->device_uid, [
                 'latitude' => (float) $validated['latitude'],
                 'longitude' => (float) $validated['longitude'],
                 'accuracy' => 10.0,
                 'provider' => 'sms_relay',
                 'recorded_at' => now()->toIso8601String(),
                 'relay_source' => $validated['relay_source'],
-            ]);
-        } catch (\Exception $e) {}
+        ]));
 
         return response()->json(['message' => 'Relay processed successfully']);
     }
@@ -132,11 +132,9 @@ class DeviceController
             'owner_id' => $request->user()->id
         ]);
         
-        try {
-            app(\App\Domain\Contracts\NotificationServiceInterface::class)->updateDeviceState($device->device_uid, [
+        $this->dispatchFirebaseJob(new SyncFirebaseDeviceState($device->device_uid, [
                 'is_power_saver' => (bool) $device->is_power_saver,
-            ]);
-        } catch (\Exception $e) {}
+        ]));
 
         return response()->json(['status' => 'success', 'is_power_saver' => $device->is_power_saver, 'data' => DeviceResource::make($device)]);
     }
@@ -176,5 +174,16 @@ class DeviceController
             'last_seen_at' => $device->last_seen_at,
             'battery_level' => $device->battery_level,
         ]);
+    }
+
+    private function dispatchFirebaseJob(object $job): void
+    {
+        try {
+            Bus::dispatch($job);
+        } catch (\Throwable $e) {
+            if (method_exists($job, 'handle')) {
+                $job->handle(app(NotificationServiceInterface::class));
+            }
+        }
     }
 }

@@ -2,10 +2,12 @@
 
 namespace App\Application\Device\Actions;
 
+use App\Application\Jobs\SyncFirebaseDeviceState;
 use App\Domain\Command\Models\Command;
 use App\Domain\Device\Models\Device;
 use App\Domain\Device\Repositories\DeviceRepositoryInterface;
 use App\Domain\Contracts\NotificationServiceInterface;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 
 class StopSearchModeAction
@@ -32,14 +34,21 @@ class StopSearchModeAction
             return $device;
         });
 
-        try {
-            $this->firebase->updateDeviceState($result->device_uid, $result->only([
+        $this->dispatchFirebaseJob(new SyncFirebaseDeviceState($result->device_uid, $result->only([
                 'last_seen_at', 'last_heartbeat_at', 'battery_level', 'is_screaming', 'is_tracking_continuous', 'is_locked', 'is_stolen', 'is_searching'
-            ]));
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Firebase sync failed', ['error' => $e->getMessage()]);
-        }
+        ])));
 
         return $result;
+    }
+
+    private function dispatchFirebaseJob(object $job): void
+    {
+        try {
+            Bus::dispatch($job);
+        } catch (\Throwable $e) {
+            if (method_exists($job, 'handle')) {
+                $job->handle($this->firebase);
+            }
+        }
     }
 }

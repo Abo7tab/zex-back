@@ -2,18 +2,32 @@
 
 namespace App\Presentation\Http\Controllers\Api;
 
+use App\Application\Jobs\SyncFirebaseDeviceState;
 use App\Application\Location\Actions\GetLocationHistoryAction;
 use App\Application\Location\Actions\StoreLocationAction;
+use App\Domain\Contracts\NotificationServiceInterface;
 use App\Domain\Device\Models\Device;
 use App\Presentation\Http\Requests\StoreLocationRequest;
 use App\Presentation\Http\Resources\LocationResource;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class LocationController
 {
     public function history(Request $request, Device $device, GetLocationHistoryAction $action) { return LocationResource::collection($action->execute($request->user(), $device)); }
-    public function store(StoreLocationRequest $request, StoreLocationAction $action): JsonResponse { $location = $action->execute($request->attributes->get('device'), $request->safe()->except('device_uid')); return response()->json(LocationResource::make($location), 201); }
+    public function store(StoreLocationRequest $request, StoreLocationAction $action): JsonResponse
+    {
+        $location = $action->execute($request->attributes->get('device'), $request->safe()->except('device_uid'));
+
+        if (! $location) {
+            return response()->json([
+                'message' => 'Location cached and skipped until the device is requested or tracking is active.',
+            ], 202);
+        }
+
+        return response()->json(LocationResource::make($location), 201);
+    }
 
     public function bleRelay(Request $request, StoreLocationAction $action): JsonResponse
     {
@@ -49,20 +63,16 @@ class LocationController
         $locationData = $request->only(['latitude', 'longitude', 'accuracy', 'battery_level']);
         $locationData['provider'] = 'ble_mesh';
         
-        $location = $action->execute($device, $locationData);
+        $location = $action->execute($device, $locationData, true);
         
         $device->update(['last_seen_at' => now()]);
 
-        try {
-            app(\App\Domain\Contracts\NotificationServiceInterface::class)->updateDeviceState($device->device_uid, [
+        $this->dispatchFirebaseJob(new SyncFirebaseDeviceState($device->device_uid, [
                 'last_seen_at' => $device->last_seen_at->toIso8601String(),
                 'relay_source' => 'BLE_RELAY',
                 'ble_distance_meters' => $request->distance_meters,
                 'ble_proximity' => $request->distance_meters !== null && (float) $request->distance_meters <= 5 ? 'NEAR' : 'SEARCHING',
-            ]);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('BLE proximity RTDB sync failed', ['error' => $e->getMessage()]);
-        }
+        ]));
 
         \App\Application\Services\AuditLogService::log(
             $device->owner_id,
@@ -113,15 +123,24 @@ class LocationController
             'recorded_at' => now()
         ]);
         
-        try {
-            app(\App\Domain\Contracts\NotificationServiceInterface::class)->updateDeviceState($device->device_uid, [
+        $this->dispatchFirebaseJob(new SyncFirebaseDeviceState($device->device_uid, [
                 'last_seen_at' => $device->last_seen_at->toIso8601String(),
                 'latest_lat' => $request->latitude,
                 'latest_lng' => $request->longitude,
                 'relay_source' => 'SMS'
-            ]);
-        } catch (\Exception $e) {}
+        ]));
 
         return response()->json(['message' => 'SMS Relay processed successfully']);
+    }
+
+    private function dispatchFirebaseJob(object $job): void
+    {
+        try {
+            Bus::dispatch($job);
+        } catch (\Throwable $e) {
+            if (method_exists($job, 'handle')) {
+                $job->handle(app(NotificationServiceInterface::class));
+            }
+        }
     }
 }

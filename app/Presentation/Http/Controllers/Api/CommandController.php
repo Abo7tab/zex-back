@@ -2,6 +2,7 @@
 
 namespace App\Presentation\Http\Controllers\Api;
 
+use App\Application\Jobs\SyncFirebaseDeviceState;
 use App\Application\Command\Actions\IssueDeviceCommandAction;
 use App\Application\Command\Actions\LockDeviceAction;
 use App\Application\Command\Actions\ProcessCommandResponseAction;
@@ -21,6 +22,7 @@ use App\Presentation\Http\Requests\SendCommandRequest;
 use App\Presentation\Http\Requests\StopScreamRequest;
 use App\Presentation\Http\Requests\TrackDeviceRequest;
 use App\Presentation\Http\Resources\CommandResource;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -39,8 +41,12 @@ class CommandController
     public function localStopScream(Request $request): JsonResponse {
         $device = $request->attributes->get('device');
         if ($device) {
-            app(\App\Application\Services\FirebaseService::class)->updateDeviceStatus($device->device_uid, ['is_screaming' => false]);
             $device->update(['is_screaming' => false]);
+            try {
+                Bus::dispatch(new SyncFirebaseDeviceState($device->device_uid, ['is_screaming' => false]));
+            } catch (\Throwable) {
+                app(\App\Domain\Contracts\NotificationServiceInterface::class)->updateDeviceState($device->device_uid, ['is_screaming' => false]);
+            }
         }
         return response()->json(['message' => 'Scream stopped locally'], 200);
     }
@@ -55,7 +61,7 @@ class CommandController
     }
     public function found(FoundDeviceRequest $request, Device $device, SetFoundModeAction $action): JsonResponse { 
         \App\Application\Services\AuditLogService::log($request->user()->id, $device->id, 'FOUND_MODE', $request->ip(), $request->userAgent());
-        return response()->json(\App\Presentation\Http\Resources\DeviceResource::make($action->execute($request->user(), $device, $request->validated('pin_code'))), 200); 
+        return response()->json(\App\Presentation\Http\Resources\DeviceResource::make($action->execute($request->user(), $device, $request->validated('pin_code'))), 201); 
     }
     public function storeResponse(CommandResponseRequest $request, Command $command, ProcessCommandResponseAction $action): CommandResource { return CommandResource::make($action->execute($request->attributes->get('device'), $command, $request->enum('status', CommandStatus::class), $request->validated('response'))); }
     private function issue(Request $request, Device $device, CommandType $type, array $parameters, array $state, IssueDeviceCommandAction $action): JsonResponse { return response()->json(CommandResource::make($action->execute($request->user(), $device, $type, $parameters, $state)), 201); }
