@@ -104,7 +104,11 @@ class StoreLocationAction
             return true;
         }
 
-        if (! Schema::hasTable('commands')) {
+        $hasCommands = Cache::remember('schema:has_commands_table', now()->addDay(), function () {
+            return Schema::hasTable('commands');
+        });
+
+        if (! $hasCommands) {
             return true;
         }
 

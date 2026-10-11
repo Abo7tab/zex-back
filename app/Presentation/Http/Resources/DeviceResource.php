@@ -9,9 +9,14 @@ use Illuminate\Support\Facades\Schema;
 
 class DeviceResource extends JsonResource
 {
+    private static ?bool $hasLocationsTable = null;
+
     public function toArray(Request $request): array
     {
-        $lastLocation = Schema::hasTable('locations') ? $this->lastLocation : null;
+        self::$hasLocationsTable ??= Cache::remember('schema:has_locations_table', now()->addDay(), function () {
+            return Schema::hasTable('locations');
+        });
+        $lastLocation = self::$hasLocationsTable ? $this->lastLocation : null;
         $cachedLocation = Cache::get("devices:{$this->id}:latest-location");
 
         return [

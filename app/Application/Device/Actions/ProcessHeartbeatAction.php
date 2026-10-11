@@ -28,10 +28,10 @@ class ProcessHeartbeatAction
                 || $heartbeatWriteSeconds <= 0
                 || $device->last_heartbeat_at->lte($now->copy()->subSeconds($heartbeatWriteSeconds));
 
-            if ($shouldTouchHeartbeat && Schema::hasColumn('devices', 'last_seen_at')) $updates['last_seen_at'] = $now;
-            if ($shouldTouchHeartbeat && Schema::hasColumn('devices', 'last_heartbeat_at')) $updates['last_heartbeat_at'] = $now;
-            if ($batteryLevel !== null && $device->battery_level !== $batteryLevel && Schema::hasColumn('devices', 'battery_level')) $updates['battery_level'] = $batteryLevel;
-            if ($fcmToken !== null && $device->fcm_token !== $fcmToken && Schema::hasColumn('devices', 'fcm_token')) $updates['fcm_token'] = $fcmToken;
+            if ($shouldTouchHeartbeat) $updates['last_seen_at'] = $now;
+            if ($shouldTouchHeartbeat) $updates['last_heartbeat_at'] = $now;
+            if ($batteryLevel !== null && $device->battery_level !== $batteryLevel) $updates['battery_level'] = $batteryLevel;
+            if ($fcmToken !== null && $device->fcm_token !== $fcmToken) $updates['fcm_token'] = $fcmToken;
             $device = $updates === [] ? $device->refresh() : $this->devices->update($device, $updates);
 
             $commands = $this->commands->pendingForDevice($device);

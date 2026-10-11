@@ -10,17 +10,23 @@ use Illuminate\Support\Facades\Schema;
 
 class AuditLogController {
     public function index(Request $request) {
-        $this->pruneExpiredLogs();
-        $this->surfaceCommandWaitStates($request->user()->id);
-
         $user = $request->user();
+        $cacheKey = "user:{$user->id}:audit_logs_response";
+        $cached = Cache::get($cacheKey);
+        if ($cached !== null) {
+            return response()->json($cached);
+        }
+
+        $this->pruneExpiredLogs();
+        $this->surfaceCommandWaitStates($user->id);
+
         $hasRetentionColumns = $this->hasRetentionColumns();
         $rawLogs = DB::table('audit_logs')
             ->leftJoin('devices', 'audit_logs.device_id', '=', 'devices.id')
             ->where('audit_logs.owner_id', $user->id)
             ->select('audit_logs.*', 'devices.device_name')
             ->orderByDesc('audit_logs.created_at')
-            ->limit(200)
+            ->limit(100)
             ->get();
 
         $ownerDevices = DB::table('devices')
@@ -68,7 +74,13 @@ class AuditLogController {
                     'payload'            => $payload,
                     'metadata'           => collect($details)->except(['message', 'severity', 'payload'])->all(),
                 ];
-            });
+            })
+            ->values()
+            ->all();
+
+        // Cache response for 4 seconds to eliminate polling CPU spike
+        Cache::put($cacheKey, $logs, now()->addSeconds(4));
+
         return response()->json($logs);
     }
 
@@ -148,33 +160,54 @@ class AuditLogController {
         ]);
     }
 
+    private static ?bool $hasRetentionCols = null;
+    private static ?bool $hasCommandsTbl = null;
+
     private function pruneExpiredLogs(): void
     {
-        $threeDaysAgo = now()->subDays(3);
-
-        if (! $this->hasRetentionColumns()) {
-            DB::table('audit_logs')
-                ->where('created_at', '<=', $threeDaysAgo)
-                ->delete();
+        // Run prune at most once every 6 hours
+        if (! Cache::add('audit_logs:prune_cooldown', true, now()->addHours(6))) {
             return;
         }
 
-        DB::table('audit_logs')
-            ->where(function ($query) use ($threeDaysAgo) {
-                $query->where(function ($inner) {
-                    $inner->whereNotNull('expires_at')
-                        ->where('expires_at', '<=', now());
-                })->orWhere(function ($inner) use ($threeDaysAgo) {
-                    $inner->whereNull('expires_at')
-                        ->where('created_at', '<=', $threeDaysAgo);
-                });
-            })
-            ->delete();
+        try {
+            $threeDaysAgo = now()->subDays(3);
+
+            if (! $this->hasRetentionColumns()) {
+                DB::table('audit_logs')
+                    ->where('created_at', '<=', $threeDaysAgo)
+                    ->delete();
+                return;
+            }
+
+            DB::table('audit_logs')
+                ->where(function ($query) use ($threeDaysAgo) {
+                    $query->where(function ($inner) {
+                        $inner->whereNotNull('expires_at')
+                            ->where('expires_at', '<=', now());
+                    })->orWhere(function ($inner) use ($threeDaysAgo) {
+                        $inner->whereNull('expires_at')
+                            ->where('created_at', '<=', $threeDaysAgo);
+                    });
+                })
+                ->delete();
+        } catch (\Throwable) {
+            // Ignore during high concurrency
+        }
     }
 
     private function surfaceCommandWaitStates(int $ownerId): void
     {
-        if (! Schema::hasTable('commands')) {
+        // Only run check at most once every 45 seconds per owner
+        if (! Cache::add("user:{$ownerId}:surface_wait_states_cooldown", true, now()->addSeconds(45))) {
+            return;
+        }
+
+        self::$hasCommandsTbl ??= Cache::remember('schema:has_commands_table', now()->addDay(), function () {
+            return Schema::hasTable('commands');
+        });
+
+        if (! self::$hasCommandsTbl) {
             return;
         }
 
@@ -251,7 +284,9 @@ class AuditLogController {
 
     private function hasRetentionColumns(): bool
     {
-        return Schema::hasColumn('audit_logs', 'expires_at')
-            && Schema::hasColumn('audit_logs', 'retention_extended_at');
+        return self::$hasRetentionCols ??= Cache::remember('schema:audit_logs:has_retention_columns', now()->addDay(), function () {
+            return Schema::hasColumn('audit_logs', 'expires_at')
+                && Schema::hasColumn('audit_logs', 'retention_extended_at');
+        });
     }
 }
