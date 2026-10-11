@@ -87,14 +87,28 @@ class IssueDeviceCommandAction
         // Only push commands that the mobile client supports in its CommandType enum
         // Mobile enum: LOCATE, CONTINUOUS_TRACK, STOP_TRACKING, SCREAM, STOP_SCREAM, LOCK, ENABLE_NET, STATUS, STOLEN_MODE, FOUND_MODE, PHOTO
         if (! in_array($type, [CommandType::POWER_SAVER_ON, CommandType::POWER_SAVER_OFF], true)) {
-            $this->dispatchFirebaseJob(new PushFirebaseCommand($device->device_uid, $command->toArray()));
+            $stringParams = [];
+            foreach ($parameters as $k => $v) {
+                $stringParams[(string) $k] = (string) $v;
+            }
+            $rtdbPayload = [
+                'id' => (int) $command->id,
+                'type' => (string) $command->type->value,
+                'status' => 'PENDING',
+                'parameters' => (object) $stringParams,
+            ];
+            $this->dispatchFirebaseJob(new PushFirebaseCommand($device->device_uid, $rtdbPayload));
         }
 
         if ($device->fcm_token) {
+            $fcmParams = [];
+            foreach ($parameters as $k => $v) {
+                $fcmParams[(string) $k] = (string) $v;
+            }
             $fcmPayload = array_merge([
                 'id'   => (string) $command->id,
                 'type' => (string) $command->type->value,
-            ], $parameters);
+            ], $fcmParams);
             $this->dispatchFirebaseJob(new SendFirebaseDeviceNotification($device->fcm_token, 'New Command', "Command: {$type->value}", $fcmPayload));
         }
         

@@ -50,8 +50,22 @@ class FirebaseService implements NotificationServiceInterface
     public function pushCommandRealtime(string $deviceUid, array $command): void
     {
         try {
-            $this->database->getReference("devices/{$deviceUid}/pending_commands/{$command['id']}")
-                ->set($command);
+            $params = [];
+            if (!empty($command['parameters']) && is_iterable($command['parameters'])) {
+                foreach ($command['parameters'] as $k => $v) {
+                    $params[(string) $k] = (string) $v;
+                }
+            }
+
+            $payload = [
+                'id' => (int) ($command['id'] ?? 0),
+                'type' => (string) ($command['type'] instanceof \BackedEnum ? $command['type']->value : ($command['type'] ?? '')),
+                'status' => (string) ($command['status'] instanceof \BackedEnum ? $command['status']->value : ($command['status'] ?? 'PENDING')),
+                'parameters' => (object) $params,
+            ];
+
+            $this->database->getReference("devices/{$deviceUid}/pending_commands/{$payload['id']}")
+                ->set($payload);
         } catch (Throwable $e) {
             Log::warning('Firebase pushCommandRealtime failed: ' . $e->getMessage());
         }
@@ -86,11 +100,19 @@ class FirebaseService implements NotificationServiceInterface
         try {
             $config = \Kreait\Firebase\Messaging\AndroidConfig::fromArray([
                 'priority' => 'high',
-                'ttl' => '0s', // 0s ensures immediate delivery or drop, better for waking up devices
+                'ttl' => '86400s',
+                'direct_boot_ok' => true,
             ]);
 
+            $stringData = [];
+            foreach (array_merge($data, ['priority' => 'high']) as $k => $v) {
+                if (is_scalar($v) || $v === null) {
+                    $stringData[(string) $k] = (string) $v;
+                }
+            }
+
             $message = CloudMessage::withTarget('token', $fcmToken)
-                ->withData(array_merge($data, ['priority' => 'high'])) // Sometimes passing in data helps custom receivers
+                ->withData($stringData)
                 ->withAndroidConfig($config);
 
             $this->messaging->send($message);
