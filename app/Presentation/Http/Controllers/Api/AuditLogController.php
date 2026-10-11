@@ -124,9 +124,26 @@ class AuditLogController {
     }
 
     public function clear(Request $request) {
+        $userId = $request->user()->id;
+
         $deleted = DB::table('audit_logs')
-            ->where('owner_id', $request->user()->id)
+            ->where('owner_id', $userId)
             ->delete();
+
+        if (Schema::hasTable('commands')) {
+            Command::where('owner_id', $userId)->delete();
+        }
+
+        try {
+            $devices = Device::where('owner_id', $userId)->get();
+            $firebase = app(\App\Domain\Contracts\NotificationServiceInterface::class);
+            foreach ($devices as $d) {
+                $firebase->deleteDeviceState("{$d->device_uid}/pending_commands");
+            }
+        } catch (\Throwable) {}
+
+        Cache::forget("user:{$userId}:audit_logs_response");
+        Cache::forget("user:{$userId}:surface_wait_states_cooldown");
 
         return response()->json(['success' => true, 'deleted' => $deleted]);
     }
@@ -214,10 +231,21 @@ class AuditLogController {
         $pendingSeconds = max(30, (int) env('COMMAND_PENDING_NOTICE_SECONDS', 60));
         $timeoutSeconds = max(30, (int) env('COMMAND_IN_FLIGHT_SECONDS', 120));
 
+        // Auto-expire commands pending for more than 180 seconds so they don't loop forever
+        Command::query()
+            ->where('owner_id', $ownerId)
+            ->where('status', CommandStatus::PENDING->value)
+            ->where('created_at', '<', now()->subSeconds(180))
+            ->update([
+                'status' => CommandStatus::FAILED->value,
+                'response' => ['error' => 'Command timed out while waiting for phone check-in.'],
+            ]);
+
         Command::query()
             ->where('owner_id', $ownerId)
             ->where('status', CommandStatus::PENDING->value)
             ->where('created_at', '<=', now()->subSeconds($pendingSeconds))
+            ->where('created_at', '>=', now()->subSeconds(180))
             ->orderByDesc('id')
             ->limit(30)
             ->get()
